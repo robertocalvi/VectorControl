@@ -84,15 +84,16 @@
       if (d.connected) {
         $status.textContent = "ONLINE";
         $status.className = "status-badge online";
-        $firmware.textContent = `FW ${d.firmware}`;
-        updateControlStatus(!!d.has_control);
+        $firmware.textContent = `FW ${d.firmware || "?"}`;
       } else {
         $status.textContent = "OFFLINE";
         $status.className = "status-badge offline";
       }
+      updateWakeState(d.state || "disconnected");
     } catch {
       $status.textContent = "OFFLINE";
       $status.className = "status-badge offline";
+      updateWakeState("disconnected");
     }
   }
 
@@ -306,30 +307,43 @@
     }
   });
 
-  const $btnGoHome        = document.getElementById("btn-go-home");
-  const $btnOffCharger    = document.getElementById("btn-off-charger");
-  const $btnTakeControl   = document.getElementById("btn-take-control");
+  const $btnGoHome         = document.getElementById("btn-go-home");
+  const $btnOffCharger     = document.getElementById("btn-off-charger");
+  const $btnWake           = document.getElementById("btn-wake");
   const $btnReleaseControl = document.getElementById("btn-release-control");
-  const $controlStatus    = document.getElementById("control-status");
+  const $wakeState         = document.getElementById("wake-state");
 
   $btnGoHome.addEventListener("click", () => post("/api/go_home"));
   $btnOffCharger.addEventListener("click", () => post("/api/drive_off_charger"));
-  $btnTakeControl.addEventListener("click", async () => {
-    const r = await post("/api/take_control");
-    if (r && r.has_control) updateControlStatus(true);
-  });
-  $btnReleaseControl.addEventListener("click", async () => {
-    await post("/api/release_control");
-    updateControlStatus(false);
+
+  $btnWake.addEventListener("click", async () => {
+    const r = await post("/api/wake");
+    if (r) updateWakeState(r.state || "waking");
   });
 
-  function updateControlStatus(hasControl) {
-    if (hasControl) {
-      $controlStatus.textContent = "CONTROL";
-      $controlStatus.className = "status-badge online";
-    } else {
-      $controlStatus.textContent = "NO CONTROL";
-      $controlStatus.className = "status-badge offline";
+  $btnReleaseControl.addEventListener("click", async () => {
+    const r = await post("/api/release_control");
+    if (r) updateWakeState(r.state || "connected");
+  });
+
+  const WAKE_STATE_DISPLAY = {
+    disconnected: { text: "DISCONNECTED", cls: "offline"  },
+    connecting:   { text: "CONNECTING…",  cls: "warning"  },
+    connected:    { text: "CONNECTED",    cls: "warning"  },
+    waking:       { text: "WAKING…",      cls: "warning"  },
+    awake:        { text: "AWAKE",        cls: "online"   },
+    error:        { text: "ERROR",        cls: "offline"  },
+  };
+
+  function updateWakeState(state) {
+    const s = WAKE_STATE_DISPLAY[state] || { text: state.toUpperCase(), cls: "offline" };
+    if ($wakeState) {
+      $wakeState.textContent = s.text;
+      $wakeState.className = "status-badge " + s.cls;
+    }
+    if ($btnWake) {
+      $btnWake.disabled = (state === "waking");
+      $btnWake.textContent = state === "waking" ? "\u26A1 WAKING\u2026" : "\u26A1 WAKE UP VECTOR";
     }
   }
 

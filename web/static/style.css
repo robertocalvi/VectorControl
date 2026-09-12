@@ -67,6 +67,11 @@ h1 .accent { color: var(--accent); }
   color: var(--danger);
   border: 1px solid var(--danger);
 }
+.status-badge.warning {
+  background: #f59e0b22;
+  color: var(--warning);
+  border: 1px solid var(--warning);
+}
 
 .firmware {
   font-family: var(--font-mono);
@@ -282,6 +287,14 @@ main {
   color: var(--text-secondary);
 }
 .off-charger-btn:hover { background: var(--border); color: var(--text-primary); }
+
+.wake-btn {
+  background: #1e1a0a;
+  color: var(--warning);
+  border-color: var(--warning);
+}
+.wake-btn:hover { background: var(--warning); color: var(--bg-primary); }
+.wake-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* Speed control */
 .speed-control {

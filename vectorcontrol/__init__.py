@@ -7,6 +7,9 @@ from vectorcontrol.config import RobotConfig, load_config
 from vectorcontrol.connection import VectorConnection
 from vectorcontrol.robot import VectorRobot
 from vectorcontrol.safety import SafetyGuard, emergency_stop
+from vectorcontrol.vector_state import StateContainer, VectorState
+from vectorcontrol.wake_manager import release_control, start_wake, wake_vector
+from vectorcontrol.vector_manager import VectorManager
 
 __all__ = [
     "RobotConfig",
@@ -15,4 +18,10 @@ __all__ = [
     "VectorRobot",
     "SafetyGuard",
     "emergency_stop",
+    "VectorState",
+    "StateContainer",
+    "wake_vector",
+    "start_wake",
+    "release_control",
+    "VectorManager",
 ]
