@@ -87,22 +87,29 @@ def connect_robot() -> anki_vector.Robot:
     return robot
 
 
+_control_requesting: bool = False
+
+
 def request_control() -> bool:
-    """Request behavior control from Vector. Returns True if granted."""
-    global _has_control
+    global _has_control, _control_requesting
     if ROBOT is None:
         return False
     if _has_control:
         return True
+    if _control_requesting:
+        return False
+    _control_requesting = True
     try:
         logger.info("Requesting behavior control …")
-        ROBOT.conn.request_control(timeout=10)
+        ROBOT.conn.request_control(timeout=5)
         _has_control = True
         logger.info("Behavior control granted")
         return True
     except Exception as exc:
         logger.warning("Failed to get control: %s", exc)
         return False
+    finally:
+        _control_requesting = False
 
 
 def release_control() -> None:
@@ -169,8 +176,8 @@ async def api_status():
     if ROBOT is None:
         return JSONResponse({"connected": False}, status_code=503)
     try:
-        bat = ROBOT.get_battery_state()
-        ver = ROBOT.get_version_state()
+        bat = await asyncio.to_thread(ROBOT.get_battery_state)
+        ver = await asyncio.to_thread(ROBOT.get_version_state)
         return {
             "connected": True,
             "has_control": _has_control,
@@ -188,7 +195,7 @@ async def api_status():
 async def api_take_control():
     if ROBOT is None:
         return JSONResponse({"error": "not connected"}, status_code=503)
-    ok = request_control()
+    ok = await asyncio.to_thread(request_control)
     return {"ok": ok, "has_control": _has_control}
 
 
@@ -196,7 +203,7 @@ async def api_take_control():
 async def api_release_control():
     if ROBOT is None:
         return JSONResponse({"error": "not connected"}, status_code=503)
-    release_control()
+    await asyncio.to_thread(release_control)
     return {"ok": True, "has_control": _has_control}
 
 
@@ -204,31 +211,28 @@ async def api_release_control():
 # Motor control
 # ---------------------------------------------------------------------------
 def _ensure_control():
-    """Auto-request behavior control before any motor command."""
     if not _has_control:
-        if not request_control():
-            raise RuntimeError("Cannot get behavior control — is Vector awake?")
+        raise RuntimeError("No behavior control. Press TAKE CONTROL first (Vector must be awake).")
 
 
 @app.post("/api/drive")
 async def api_drive(action: str = "stop"):
-    """Drive wheels.  action: forward | backward | left | right | stop"""
     if ROBOT is None:
         return JSONResponse({"error": "not connected"}, status_code=503)
     try:
-        _ensure_control()
+        await asyncio.to_thread(_ensure_control)
         ds = _drive_speed()
         ts = _turn_speed()
         if action == "forward":
-            ROBOT.motors.set_wheel_motors(ds, ds)
+            await asyncio.to_thread(ROBOT.motors.set_wheel_motors, ds, ds)
         elif action == "backward":
-            ROBOT.motors.set_wheel_motors(-ds, -ds)
+            await asyncio.to_thread(ROBOT.motors.set_wheel_motors, -ds, -ds)
         elif action == "left":
-            ROBOT.motors.set_wheel_motors(-ts, ts)
+            await asyncio.to_thread(ROBOT.motors.set_wheel_motors, -ts, ts)
         elif action == "right":
-            ROBOT.motors.set_wheel_motors(ts, -ts)
+            await asyncio.to_thread(ROBOT.motors.set_wheel_motors, ts, -ts)
         else:
-            ROBOT.motors.set_wheel_motors(0, 0)
+            await asyncio.to_thread(ROBOT.motors.set_wheel_motors, 0, 0)
         return {"ok": True, "action": action, "drive_speed": ds, "turn_speed": ts}
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
@@ -241,14 +245,13 @@ async def api_head(direction: str = "stop"):
     if ROBOT is None:
         return JSONResponse({"error": "not connected"}, status_code=503)
     try:
-        _ensure_control()
+        await asyncio.to_thread(_ensure_control)
         if direction == "up":
             _head_angle_deg = min(_head_angle_deg + 5, 45)
         elif direction == "down":
             _head_angle_deg = max(_head_angle_deg - 5, -22)
-        else:
-            pass  # keep current
-        ROBOT.motors.set_head_motor(HEAD_SPEED if direction == "up" else (-HEAD_SPEED if direction == "down" else 0))
+        speed = HEAD_SPEED if direction == "up" else (-HEAD_SPEED if direction == "down" else 0)
+        await asyncio.to_thread(ROBOT.motors.set_head_motor, speed)
         return {"ok": True, "head_angle_deg": _head_angle_deg}
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
@@ -260,7 +263,7 @@ async def api_head_stop():
         return JSONResponse({"error": "not connected"}, status_code=503)
     try:
         if _has_control:
-            ROBOT.motors.set_head_motor(0)
+            await asyncio.to_thread(ROBOT.motors.set_head_motor, 0)
         return {"ok": True}
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
@@ -268,18 +271,13 @@ async def api_head_stop():
 
 @app.post("/api/lift")
 async def api_lift(direction: str = "stop"):
-    """Move lift.  direction: up | down | stop"""
     global _lift_height
     if ROBOT is None:
         return JSONResponse({"error": "not connected"}, status_code=503)
     try:
-        _ensure_control()
-        if direction == "up":
-            ROBOT.motors.set_lift_motor(LIFT_SPEED)
-        elif direction == "down":
-            ROBOT.motors.set_lift_motor(-LIFT_SPEED)
-        else:
-            ROBOT.motors.set_lift_motor(0)
+        await asyncio.to_thread(_ensure_control)
+        speed = LIFT_SPEED if direction == "up" else (-LIFT_SPEED if direction == "down" else 0)
+        await asyncio.to_thread(ROBOT.motors.set_lift_motor, speed)
         return {"ok": True}
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
@@ -292,7 +290,7 @@ async def api_lift_stop():
     try:
         if not _has_control:
             return {"ok": True}
-        ROBOT.motors.set_lift_motor(0)
+        await asyncio.to_thread(ROBOT.motors.set_lift_motor, 0)
         return {"ok": True}
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
@@ -318,7 +316,7 @@ async def api_go_home():
     if ROBOT is None:
         return JSONResponse({"error": "not connected"}, status_code=503)
     try:
-        _ensure_control()
+        await asyncio.to_thread(_ensure_control)
         threading.Thread(target=ROBOT.behavior.drive_on_charger, daemon=True).start()
         return {"ok": True}
     except Exception as exc:
@@ -330,7 +328,7 @@ async def api_drive_off_charger():
     if ROBOT is None:
         return JSONResponse({"error": "not connected"}, status_code=503)
     try:
-        _ensure_control()
+        await asyncio.to_thread(_ensure_control)
         threading.Thread(target=ROBOT.behavior.drive_off_charger, daemon=True).start()
         return {"ok": True}
     except Exception as exc:
@@ -344,7 +342,7 @@ async def api_stop():
         return JSONResponse({"error": "not connected"}, status_code=503)
     try:
         if _has_control:
-            ROBOT.motors.stop_all_motors()
+            await asyncio.to_thread(ROBOT.motors.stop_all_motors)
         return {"ok": True}
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
@@ -355,8 +353,8 @@ async def api_say(text: str = "Hello"):
     if ROBOT is None:
         return JSONResponse({"error": "not connected"}, status_code=503)
     try:
-        _ensure_control()
-        ROBOT.behavior.say_text(text)
+        await asyncio.to_thread(_ensure_control)
+        await asyncio.to_thread(ROBOT.behavior.say_text, text)
         return {"ok": True, "text": text}
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
@@ -365,6 +363,18 @@ async def api_say(text: str = "Hello"):
 # ---------------------------------------------------------------------------
 # WebSocket — camera stream (base64 JPEG frames)
 # ---------------------------------------------------------------------------
+def _grab_camera_frame() -> str | None:
+    try:
+        img = ROBOT.camera.latest_image
+        if img and img.raw_image:
+            buf = io.BytesIO()
+            img.raw_image.save(buf, format="JPEG", quality=60)
+            return base64.b64encode(buf.getvalue()).decode("ascii")
+    except Exception:
+        pass
+    return None
+
+
 @app.websocket("/ws/camera")
 async def ws_camera(ws: WebSocket):
     await ws.accept()
@@ -375,22 +385,82 @@ async def ws_camera(ws: WebSocket):
                 await asyncio.sleep(1)
                 continue
             try:
-                img = ROBOT.camera.latest_image
-                if img and img.raw_image:
-                    buf = io.BytesIO()
-                    img.raw_image.save(buf, format="JPEG", quality=60)
-                    b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+                b64 = await asyncio.to_thread(_grab_camera_frame)
+                if b64:
                     await ws.send_text(b64)
             except Exception:
                 pass
-            await asyncio.sleep(0.1)  # ~10 fps
-    except WebSocketDisconnect:
+            await asyncio.sleep(0.1)
+    except (WebSocketDisconnect, Exception):
         logger.info("Camera WebSocket disconnected")
 
 
 # ---------------------------------------------------------------------------
 # WebSocket — telemetry stream (JSON)
 # ---------------------------------------------------------------------------
+def _collect_telemetry() -> dict:
+    """Collect all telemetry data (runs in a thread to avoid blocking asyncio)."""
+    data: dict = {}
+    try:
+        bat = ROBOT.get_battery_state()
+        data["battery"] = {
+            "level": bat.battery_level,
+            "volts": round(bat.battery_volts, 2),
+            "charging": bat.is_charging,
+            "on_charger": bat.is_on_charger_platform,
+        }
+    except Exception:
+        pass
+    try:
+        prox = ROBOT.proximity.last_sensor_reading
+        if prox:
+            data["proximity"] = {
+                "distance_mm": round(prox.distance.distance_mm, 1),
+                "found_object": prox.found_object,
+                "signal_quality": round(prox.signal_quality, 2),
+                "unobstructed": prox.unobstructed,
+            }
+    except Exception:
+        pass
+    try:
+        pose = ROBOT.pose
+        if pose:
+            data["pose"] = {
+                "x": round(pose.position.x, 1),
+                "y": round(pose.position.y, 1),
+                "z": round(pose.position.z, 1),
+                "angle_deg": round(pose.rotation.angle_z.degrees, 1),
+            }
+    except Exception:
+        pass
+    try:
+        accel = ROBOT.accel
+        if accel:
+            data["accel"] = {
+                "x": round(accel.x, 2),
+                "y": round(accel.y, 2),
+                "z": round(accel.z, 2),
+            }
+    except Exception:
+        pass
+    try:
+        gyro = ROBOT.gyro
+        if gyro:
+            data["gyro"] = {
+                "x": round(gyro.x, 2),
+                "y": round(gyro.y, 2),
+                "z": round(gyro.z, 2),
+            }
+    except Exception:
+        pass
+    try:
+        data["head_angle_rad"] = round(ROBOT.head_angle_rad, 3)
+        data["lift_height_mm"] = round(ROBOT.lift_height_mm, 1)
+    except Exception:
+        pass
+    return data
+
+
 @app.websocket("/ws/telemetry")
 async def ws_telemetry(ws: WebSocket):
     await ws.accept()
@@ -401,82 +471,12 @@ async def ws_telemetry(ws: WebSocket):
                 await asyncio.sleep(1)
                 continue
             try:
-                data: dict = {}
-
-                # Battery
-                try:
-                    bat = ROBOT.get_battery_state()
-                    data["battery"] = {
-                        "level": bat.battery_level,
-                        "volts": round(bat.battery_volts, 2),
-                        "charging": bat.is_charging,
-                        "on_charger": bat.is_on_charger_platform,
-                    }
-                except Exception:
-                    pass
-
-                # Proximity
-                try:
-                    prox = ROBOT.proximity.last_sensor_reading
-                    if prox:
-                        data["proximity"] = {
-                            "distance_mm": round(prox.distance.distance_mm, 1),
-                            "found_object": prox.found_object,
-                            "signal_quality": round(prox.signal_quality, 2),
-                            "unobstructed": prox.unobstructed,
-                        }
-                except Exception:
-                    pass
-
-                # Pose
-                try:
-                    pose = ROBOT.pose
-                    if pose:
-                        data["pose"] = {
-                            "x": round(pose.position.x, 1),
-                            "y": round(pose.position.y, 1),
-                            "z": round(pose.position.z, 1),
-                            "angle_deg": round(pose.rotation.angle_z.degrees, 1),
-                        }
-                except Exception:
-                    pass
-
-                # Accelerometer
-                try:
-                    accel = ROBOT.accel
-                    if accel:
-                        data["accel"] = {
-                            "x": round(accel.x, 2),
-                            "y": round(accel.y, 2),
-                            "z": round(accel.z, 2),
-                        }
-                except Exception:
-                    pass
-
-                # Gyro
-                try:
-                    gyro = ROBOT.gyro
-                    if gyro:
-                        data["gyro"] = {
-                            "x": round(gyro.x, 2),
-                            "y": round(gyro.y, 2),
-                            "z": round(gyro.z, 2),
-                        }
-                except Exception:
-                    pass
-
-                # Head / Lift
-                try:
-                    data["head_angle_rad"] = round(ROBOT.head_angle_rad, 3)
-                    data["lift_height_mm"] = round(ROBOT.lift_height_mm, 1)
-                except Exception:
-                    pass
-
+                data = await asyncio.to_thread(_collect_telemetry)
                 await ws.send_text(json.dumps(data))
             except Exception:
                 pass
-            await asyncio.sleep(0.5)  # 2 Hz telemetry
-    except WebSocketDisconnect:
+            await asyncio.sleep(0.5)
+    except (WebSocketDisconnect, Exception):
         logger.info("Telemetry WebSocket disconnected")
 
 
