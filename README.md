@@ -6,6 +6,8 @@ A modern Python application for controlling an original first-generation **Anki 
 ![SDK](https://img.shields.io/badge/SDK-wirepod--vector--sdk%200.8.1-green)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
 
+![VectorControl Dashboard](docs/images/dashboard.png)
+
 ## The Problem
 
 Anki went bankrupt in 2019. Digital Dream Labs (DDL) acquired Vector but their cloud servers have been **unreliable since April 2023**. The original `anki-vector` Python SDK (v0.6.0) depends on those dead servers for authentication — making it **unusable** for most Vector owners in 2024-2026.
@@ -46,6 +48,8 @@ The official `anki-vector` PyPI package (v0.6.0, last updated May 2019) requires
 
 ### Problem 2: Wire-Pod Requires EP Firmware
 
+![Non-EP firmware error](docs/images/firmware-error.png)
+
 Wire-Pod needs Vector to run **Escape Pod (EP) firmware** — a special build with `ep` suffix in the version string. Our Vector had standard firmware `v1.7.0.3412` (no `ep`).
 
 The normal flow is:
@@ -75,6 +79,10 @@ After pairing via Chrome's Web Bluetooth, the setup page would either:
 ### Problem 4: The BLE Console Breakthrough
 
 **Solution:** On wpsetup.keriganc.com, **unchecking "Enable auto-setup flow"** before entering the PIN revealed a hidden **BLE console** — a direct command-line interface to Vector over Bluetooth:
+
+![BLE Console](docs/images/ble-console.png)
+
+![BLE Console Commands](docs/images/ble-console-help.png)
 
 ```
 [v5] R1D2$ help
@@ -109,6 +117,8 @@ Steps that worked:
 6. Vector rebooted with EP firmware
 7. Re-paired and pressed **ACTIVATE** → "Vector setup is complete!"
 
+![Setup Complete](docs/images/setup-complete.png)
+
 ### Problem 6: SDK Certificate
 
 After Wire-Pod authentication, the Python SDK still couldn't connect:
@@ -131,6 +141,8 @@ Then we hit `StatusCode.UNAUTHENTICATED: 401` — the GUID in `sdk_config.ini` w
 - `robots[].guid` — the robot-specific GUID (correct)
 
 Using the robot-specific GUID from `http://WIREPOD_IP:8080/api-sdk/get_sdk_info` fixed it.
+
+![Wire-Pod Connected](docs/images/wirepod-connected.png)
 
 ### Final Working Configuration
 
