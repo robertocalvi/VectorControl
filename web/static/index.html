@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VectorControl</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <div class="header-left">
+      <h1>VECTOR<span class="accent">CONTROL</span></h1>
+      <div id="connection-status" class="status-badge offline">OFFLINE</div>
+    </div>
+    <div class="header-right">
+      <div class="firmware" id="firmware">—</div>
+    </div>
+  </header>
+
+  <main>
+    <!-- Left: Camera Feed -->
+    <section class="panel camera-panel">
+      <div class="panel-header">
+        <span class="panel-icon">&#9673;</span> CAMERA FEED
+        <span class="fps-counter" id="fps">0 FPS</span>
+      </div>
+      <div class="camera-container">
+        <img id="camera-feed" alt="Vector Camera" />
+        <div class="camera-overlay" id="camera-overlay">
+          <span>Connecting camera…</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right column -->
+    <div class="right-column">
+
+      <!-- Controls -->
+      <section class="panel controls-panel">
+        <div class="panel-header">
+          <span class="panel-icon">&#9881;</span> CONTROLS
+        </div>
+        <div class="controls-grid">
+          <div class="control-group">
+            <div class="control-label">DRIVE</div>
+            <div class="dpad">
+              <div></div>
+              <button class="dpad-btn" id="btn-fwd" data-action="forward">W<br><small>&#9650;</small></button>
+              <div></div>
+              <button class="dpad-btn" id="btn-left" data-action="left">A<br><small>&#9664;</small></button>
+              <button class="dpad-btn stop-btn" id="btn-stop" data-action="stop">STOP</button>
+              <button class="dpad-btn" id="btn-right" data-action="right">D<br><small>&#9654;</small></button>
+              <div></div>
+              <button class="dpad-btn" id="btn-back" data-action="backward">S<br><small>&#9660;</small></button>
+              <div></div>
+            </div>
+          </div>
+          <div class="control-group">
+            <div class="control-label">HEAD</div>
+            <div class="vert-controls">
+              <button class="ctrl-btn" id="btn-head-up" data-head="up">&#9650; UP</button>
+              <button class="ctrl-btn" id="btn-head-down" data-head="down">&#9660; DOWN</button>
+            </div>
+            <div class="control-label" style="margin-top:12px">LIFT</div>
+            <div class="vert-controls">
+              <button class="ctrl-btn" id="btn-lift-up" data-lift="up">R &#9650;</button>
+              <button class="ctrl-btn" id="btn-lift-down" data-lift="down">F &#9660;</button>
+            </div>
+          </div>
+        </div>
+        <div class="speed-control">
+          <div class="speed-label">SPEED</div>
+          <div class="speed-slider-row">
+            <button class="speed-step" id="speed-down">&#9664;</button>
+            <input type="range" id="speed-slider" min="0" max="4" value="1" step="1" />
+            <button class="speed-step" id="speed-up">&#9654;</button>
+          </div>
+          <div class="speed-presets">
+            <span class="speed-tag" data-level="0">CAUTO</span>
+            <span class="speed-tag" data-level="1">LENTO</span>
+            <span class="speed-tag" data-level="2">MEDIO</span>
+            <span class="speed-tag" data-level="3">VELOCE</span>
+            <span class="speed-tag" data-level="4">MAX</span>
+          </div>
+          <div class="speed-info" id="speed-info">80 mm/s</div>
+        </div>
+        <div class="keyboard-hint">
+          Keyboard: <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> drive &middot;
+          <kbd>&uarr;</kbd><kbd>&darr;</kbd> head &middot;
+          <kbd>R</kbd><kbd>F</kbd> lift &middot;
+          <kbd>SPACE</kbd> stop &middot;
+          <kbd>1</kbd>-<kbd>5</kbd> speed
+        </div>
+      </section>
+
+      <!-- Actions -->
+      <section class="panel actions-panel">
+        <div class="panel-header">
+          <span class="panel-icon">&#9889;</span> ACTIONS
+        </div>
+        <div class="actions-row">
+          <button class="action-btn home-btn" id="btn-go-home">&#127968; GO HOME</button>
+          <button class="action-btn off-charger-btn" id="btn-off-charger">&#9654; OFF CHARGER</button>
+        </div>
+      </section>
+
+      <!-- Speech -->
+      <section class="panel speech-panel">
+        <div class="panel-header">
+          <span class="panel-icon">&#9834;</span> SPEECH
+        </div>
+        <div class="speech-row">
+          <input type="text" id="speech-input" placeholder="Type something for Vector to say…" maxlength="200" />
+          <button id="speech-btn">SAY</button>
+        </div>
+      </section>
+
+      <!-- Telemetry -->
+      <section class="panel telemetry-panel">
+        <div class="panel-header">
+          <span class="panel-icon">&#9783;</span> TELEMETRY
+        </div>
+        <div class="telemetry-grid">
+          <div class="telem-card">
+            <div class="telem-label">BATTERY</div>
+            <div class="telem-value" id="t-battery">—</div>
+            <div class="battery-bar"><div class="battery-fill" id="battery-fill"></div></div>
+          </div>
+          <div class="telem-card">
+            <div class="telem-label">PROXIMITY</div>
+            <div class="telem-value" id="t-proximity">—</div>
+          </div>
+          <div class="telem-card">
+            <div class="telem-label">POSE</div>
+            <div class="telem-value telem-small" id="t-pose">—</div>
+          </div>
+          <div class="telem-card">
+            <div class="telem-label">HEAD / LIFT</div>
+            <div class="telem-value telem-small" id="t-headlift">—</div>
+          </div>
+          <div class="telem-card">
+            <div class="telem-label">ACCELEROMETER</div>
+            <div class="telem-value telem-small" id="t-accel">—</div>
+          </div>
+          <div class="telem-card">
+            <div class="telem-label">GYROSCOPE</div>
+            <div class="telem-value telem-small" id="t-gyro">—</div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <footer>
+    <span>VectorControl v0.1 &middot; Vector R1D2 &middot; 00401c2e</span>
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
