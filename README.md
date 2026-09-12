@@ -38,6 +38,45 @@ This project documents the complete journey of bringing a first-gen Vector back 
 - **Diagnostics tool** for troubleshooting connectivity
 - **Modular architecture** ready for future extensions (autonomous navigation, ArUco markers, web UI improvements)
 
+## Prerequisites: Installing Wire-Pod
+
+<img src="docs/images/wirepod-logo.png" width="64" align="left" style="margin-right: 12px;" />
+
+**[Wire-Pod](https://github.com/kercre123/wire-pod)** is a free, open-source replacement for Anki's dead cloud servers. It runs locally on your computer and handles voice commands, authentication, and SDK communication. **It is required** — without it, Vector cannot authenticate and the Python SDK cannot connect.
+
+<br clear="left" />
+
+### Installing Wire-Pod on macOS
+
+1. Go to the [WirePod releases page](https://github.com/kercre123/WirePod/releases)
+2. Download the latest **`WirePod-v*.dmg`** file (we used v1.2.18)
+3. Open the DMG and drag **WirePod** to your Applications folder
+4. Launch WirePod from Applications — macOS will warn about an unidentified developer
+5. Go to **System Settings → Privacy & Security** and click **"Open Anyway"**
+6. WirePod will ask permission to find devices on local networks → **Allow**
+7. Open **http://localhost:8080** (or `http://YOUR_MAC_IP:8080`) in your browser
+
+### Wire-Pod Initial Setup
+
+On first launch, Wire-Pod shows a setup page:
+
+- **Connection Method**: Select **"Escape Pod"** (recommended for production robots)
+- **Speech-to-Text Language**: Choose your language (we chose Italian)
+- Click **"Submit Settings"**
+
+You'll see the Wire-Pod dashboard with icons for Server Settings, Bot Settings, Bot Setup, Custom Intents, Log, Version Info, and UI Settings.
+
+![Wire-Pod Dashboard](docs/images/wirepod-connected.png)
+
+### Important Notes
+
+- Wire-Pod must be **running** whenever you want to use the Python SDK
+- Vector and your Mac must be on the **same WiFi network**
+- Wire-Pod uses port **8080** for its web interface and port **443** for robot communication
+- If Wire-Pod stops, just relaunch it from Applications
+
+---
+
 ## Setup Journey & Problems Encountered
 
 ### Problem 1: The Original SDK Is Dead
