@@ -1,39 +1,75 @@
 """wake_manager — Wake sequence logic for Anki Vector.
 
-The wake flow:
-  1. Robot is CONNECTED (observation mode, no behavior control).
-  2. Caller invokes start_wake() → state → WAKING, background thread spawned.
-  3. Thread calls robot.conn.request_control(timeout=N) — blocks up to N seconds.
-     • Success → state → AWAKE
-     • Failure → state → CONNECTED  (retry allowed)
-  4. Caller can release_control() → state → CONNECTED.
+Wake flow:
+  1. CONNECTED → WAKING
+  2. Send FakeButtonPress via robot's debug port 8889 (simulates physical touch)
+  3. Wait briefly for Vector to react
+  4. request_control(timeout) — should succeed quickly now
+  5. Init camera feed
+  6. WAKING → AWAKE
 
-All public functions are thread-safe and do NOT touch the asyncio event loop.
-The blocking wake_vector() must be called from a dedicated thread, never from
-an asyncio coroutine directly (use asyncio.to_thread() if you must await it,
-but start_wake() is the preferred non-blocking entry point).
+Three wake methods available (tried in order):
+  - Direct consolevars: HTTP to robot:8889 (fastest, 31ms)
+  - Wire-Pod trigger_wake_word: HTTP to Wire-Pod (proxy, 952ms)
+  - Blind request_control: just try control without wake stimulus (works if already awake)
 """
 
 from __future__ import annotations
 
 import logging
 import threading
+import time
 from typing import Optional
 
+import requests
 import anki_vector
 
 from vectorcontrol.vector_state import StateContainer, VectorState
 
 logger = logging.getLogger(__name__)
 
-
-# ---------------------------------------------------------------------------
-# Core blocking implementation
-# ---------------------------------------------------------------------------
-
-
+ROBOT_DEBUG_PORT = 8889
+WIREPOD_PORT = 8080
 MAX_ATTEMPTS = 3
-ATTEMPT_TIMEOUT = 10
+POST_WAKE_DELAY = 2.0
+CONTROL_TIMEOUT = 5
+
+
+def _send_fake_button_press(robot_ip: str) -> bool:
+    url = f"http://{robot_ip}:{ROBOT_DEBUG_PORT}/consolevarset?key=FakeButtonPressType&value=singlePressDetected"
+    logger.info("[WAKE] Sending FakeButtonPress to %s:%d", robot_ip, ROBOT_DEBUG_PORT)
+    try:
+        r = requests.get(url, timeout=5)
+        ok = r.status_code == 200
+        logger.info("[WAKE] FakeButtonPress: %s (status=%d)", "OK" if ok else "FAILED", r.status_code)
+        return ok
+    except Exception as exc:
+        logger.warning("[WAKE] FakeButtonPress failed: %s", exc)
+        return False
+
+
+def _send_wirepod_trigger(wirepod_ip: str, serial: str) -> bool:
+    url = f"http://{wirepod_ip}:{WIREPOD_PORT}/api-sdk/trigger_wake_word?serial={serial}"
+    logger.info("[WAKE] Sending trigger_wake_word via Wire-Pod")
+    try:
+        r = requests.get(url, timeout=10)
+        ok = r.status_code == 200 and "success" in r.text.lower()
+        logger.info("[WAKE] Wire-Pod trigger: %s (response=%r)", "OK" if ok else "FAILED", r.text.strip())
+        return ok
+    except Exception as exc:
+        logger.warning("[WAKE] Wire-Pod trigger failed: %s", exc)
+        return False
+
+
+def _get_robot_ip(robot: anki_vector.Robot) -> str:
+    try:
+        return robot.conn.host.split(":")[0]
+    except Exception:
+        return "192.168.1.30"
+
+
+def _get_wirepod_ip() -> str:
+    return "192.168.1.3"
 
 
 def wake_vector(
@@ -41,34 +77,45 @@ def wake_vector(
     state: StateContainer,
     timeout: int = 30,
 ) -> bool:
-    """Request behavior control from Vector. **Blocking** — always call from a thread.
+    """Full wake sequence. **Blocking** — always call from a thread.
 
-    Tries up to MAX_ATTEMPTS times with ATTEMPT_TIMEOUT seconds each.
-    If Vector is in deep sleep, request_control blocks until Vector wakes
-    (physically touched or hears wake word). The timeout prevents infinite blocking.
+    1. Send wake stimulus (FakeButtonPress via debug port)
+    2. Wait for Vector to react
+    3. request_control with timeout
+    4. Init camera
 
-    Precondition: state.state must be WAKING when this is called.
-    On success:   state → AWAKE, camera initialized.
-    On failure:   state → CONNECTED (so the caller can retry).
+    On success: state → AWAKE.
+    On failure: state → CONNECTED (retryable).
     """
     if state.state != VectorState.WAKING:
         logger.warning("[WAKE] called but state is %r — aborting", state.state.value)
         return False
 
-    per_attempt = min(ATTEMPT_TIMEOUT, timeout)
-    attempts = min(MAX_ATTEMPTS, max(1, timeout // per_attempt))
+    t0 = time.time()
+    robot_ip = _get_robot_ip(robot)
+    serial = robot.serial if hasattr(robot, "serial") else "00401c2e"
 
-    for attempt in range(1, attempts + 1):
-        logger.info("[WAKE] Attempt %d/%d — request_control(timeout=%ds)…", attempt, attempts, per_attempt)
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        logger.info("[WAKE] Attempt %d/%d", attempt, MAX_ATTEMPTS)
+
+        wake_sent = _send_fake_button_press(robot_ip)
+        if not wake_sent:
+            wake_sent = _send_wirepod_trigger(_get_wirepod_ip(), serial)
+
+        if wake_sent:
+            logger.info("[WAKE] Wake stimulus sent — waiting %.1fs for Vector to react", POST_WAKE_DELAY)
+            time.sleep(POST_WAKE_DELAY)
+
+        logger.info("[WAKE] Requesting behavior control (timeout=%ds)…", CONTROL_TIMEOUT)
         try:
-            robot.conn.request_control(timeout=per_attempt)
+            robot.conn.request_control(timeout=CONTROL_TIMEOUT)
         except Exception as exc:
-            logger.warning("[WAKE] Attempt %d failed: %s", attempt, exc)
-            if attempt < attempts:
-                logger.info("[WAKE] Vector may be in deep sleep — touch his back to wake him")
+            logger.warning("[WAKE] Attempt %d: request_control failed: %s", attempt, exc)
+            if attempt < MAX_ATTEMPTS:
                 continue
-            logger.warning("[WAKE] All %d attempts failed — Vector needs physical wake", attempts)
-            state.transition(VectorState.CONNECTED, error="Vector is in deep sleep. Touch his back to wake him, then try again.")
+            elapsed = int((time.time() - t0) * 1000)
+            logger.warning("[WAKE] All %d attempts failed after %dms", MAX_ATTEMPTS, elapsed)
+            state.transition(VectorState.CONNECTED, error="Wake failed — could not get behavior control")
             return False
 
         logger.info("[WAKE] Behavior control granted")
@@ -78,17 +125,13 @@ def wake_vector(
         except Exception as cam_exc:
             logger.warning("[WAKE] Camera init failed (non-fatal): %s", cam_exc)
 
+        elapsed = int((time.time() - t0) * 1000)
         state.transition(VectorState.AWAKE)
-        logger.info("[WAKE] Vector is AWAKE and READY")
+        logger.info("[WAKE] Vector is AWAKE and READY in %dms", elapsed)
         return True
 
     state.transition(VectorState.CONNECTED, error="Wake failed")
     return False
-
-
-# ---------------------------------------------------------------------------
-# Non-blocking entry point
-# ---------------------------------------------------------------------------
 
 
 def start_wake(
@@ -96,24 +139,9 @@ def start_wake(
     state: StateContainer,
     timeout: int = 30,
 ) -> Optional[threading.Thread]:
-    """Transition to WAKING and start wake_vector in a daemon background thread.
-
-    This function returns **immediately** after spawning the thread.
-    Poll state.state or call manager.has_control to check progress.
-
-    Args:
-        robot:   Connected anki_vector.Robot instance.
-        state:   StateContainer — must be in CONNECTED state.
-        timeout: Seconds to pass to wake_vector.
-
-    Returns:
-        The spawned Thread, or None if the transition was not possible.
-    """
+    """Transition to WAKING and start wake_vector in a daemon thread. Returns immediately."""
     if state.state != VectorState.CONNECTED:
-        logger.warning(
-            "start_wake: cannot wake from state %r (need 'connected')",
-            state.state.value,
-        )
+        logger.warning("start_wake: cannot wake from state %r", state.state.value)
         return None
 
     state.transition(VectorState.WAKING)
@@ -124,34 +152,20 @@ def start_wake(
         daemon=True,
     )
     t.start()
-    logger.debug("Wake thread spawned (id=%d)", t.ident or 0)
     return t
 
 
-# ---------------------------------------------------------------------------
-# Release helper
-# ---------------------------------------------------------------------------
-
-
 def release_control(robot: anki_vector.Robot, state: StateContainer) -> None:
-    """Release behavior control back to Vector's autonomous AI.
-
-    Safe to call from any thread.  No-op if state is not AWAKE.
-
-    Args:
-        robot: Connected anki_vector.Robot instance.
-        state: StateContainer to update.
-    """
+    """Release behavior control. No-op if not AWAKE."""
     if state.state != VectorState.AWAKE:
-        logger.debug(
-            "release_control: state is %r (not 'awake') — skipping",
-            state.state.value,
-        )
         return
-
     try:
         robot.conn.release_control()
+        try:
+            robot.camera.close_camera_feed()
+        except Exception:
+            pass
         state.transition(VectorState.CONNECTED)
-        logger.info("Behavior control released — Vector autonomous AI resumed")
+        logger.info("[WAKE] Control released — Vector autonomous")
     except Exception as exc:
-        logger.warning("release_control failed: %s", exc)
+        logger.warning("[WAKE] release_control failed: %s", exc)

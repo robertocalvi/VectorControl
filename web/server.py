@@ -288,18 +288,25 @@ async def api_say(text: str = "Hello"):
         return JSONResponse({"error": str(exc)}, status_code=500)
 
 
+_camera_error_logged = False
+
+
 def _grab_camera_frame() -> str | None:
+    global _camera_error_logged
     robot = manager.robot
-    if robot is None:
+    if robot is None or not manager.has_control:
         return None
     try:
         img = robot.camera.latest_image
         if img and img.raw_image:
+            _camera_error_logged = False
             buf = io.BytesIO()
             img.raw_image.save(buf, format="JPEG", quality=60)
             return base64.b64encode(buf.getvalue()).decode("ascii")
-    except Exception:
-        pass
+    except Exception as exc:
+        if not _camera_error_logged:
+            logger.warning("Camera frame error: %s", exc)
+            _camera_error_logged = True
     return None
 
 
