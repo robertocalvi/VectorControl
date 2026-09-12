@@ -25,6 +25,17 @@ This project documents the complete journey of bringing a first-gen Vector back 
 | Original firmware | `v1.7.0.3412` |
 | Updated firmware | `v2.0.1.6086ep` |
 
+## Quick Start
+
+> **Prerequisites:** Wire-Pod running, Vector authenticated (see setup guide below)
+
+```bash
+cd VectorControl
+.venv/bin/python -m web.server
+```
+
+Open **http://localhost:4001** in your browser. That's it — you'll see the live camera feed and can start driving Vector immediately.
+
 ## What This Project Does
 
 - **Web Dashboard** on `http://localhost:4001` with:
