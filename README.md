@@ -53,8 +53,19 @@ The official `anki-vector` PyPI package (v0.6.0, last updated May 2019) requires
 Wire-Pod needs Vector to run **Escape Pod (EP) firmware** — a special build with `ep` suffix in the version string. Our Vector had standard firmware `v1.7.0.3412` (no `ep`).
 
 The normal flow is:
-1. Put Vector in recovery mode (hold back button 15 seconds → `anki.com/v` screen)
-2. Use [wpsetup.keriganc.com](https://wpsetup.keriganc.com) in Chrome to flash EP firmware via Bluetooth
+1. Double-tap Vector's back button — he shows his name and a pairing key on screen
+2. Put Vector in recovery mode (hold back button 15 seconds → `anki.com/v` screen)
+3. Use [wpsetup.keriganc.com](https://wpsetup.keriganc.com) in Chrome to flash EP firmware via Bluetooth
+
+#### What Vector shows on screen during pairing
+
+After double-tapping the back button, Vector displays his name and waits for a PIN:
+
+| Waiting for pairing | PIN displayed |
+|:---:|:---:|
+| ![Pairing mode](docs/images/vector-pairing-mode.png) | ![PIN display](docs/images/vector-pin-display.png) |
+
+The `######` placeholders turn into a 6-digit PIN once Chrome initiates the Bluetooth connection. You must enter this PIN quickly — it times out after about 30 seconds.
 
 **What went wrong:**
 - The Bluetooth Web API pairing kept disconnecting when Vector entered recovery mode
@@ -117,7 +128,19 @@ Steps that worked:
 6. Vector rebooted with EP firmware
 7. Re-paired and pressed **ACTIVATE** → "Vector setup is complete!"
 
+#### What Vector and the browser show during firmware update
+
+| Browser: "Updating Vector..." | Vector's screen: cloud sync icon |
+|:---:|:---:|
+| ![TechShop82 updating](docs/images/techshop82-updating.png) | ![Vector cloud update](docs/images/vector-cloud-update.png) |
+
+The firmware download takes 3–10 minutes depending on WiFi speed. **Do not remove Vector from the charger** during this process.
+
+#### Setup complete
+
 ![Setup Complete](docs/images/setup-complete.png)
+
+After rebooting, Vector is running firmware `2.0.1.6086ep` and can be authenticated with Wire-Pod.
 
 ### Problem 6: SDK Certificate
 
