@@ -32,43 +32,58 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
+MAX_ATTEMPTS = 3
+ATTEMPT_TIMEOUT = 10
+
+
 def wake_vector(
     robot: anki_vector.Robot,
     state: StateContainer,
     timeout: int = 30,
 ) -> bool:
-    """Request behavior control from Vector.  **Blocking** — always call from a thread.
+    """Request behavior control from Vector. **Blocking** — always call from a thread.
+
+    Tries up to MAX_ATTEMPTS times with ATTEMPT_TIMEOUT seconds each.
+    If Vector is in deep sleep, request_control blocks until Vector wakes
+    (physically touched or hears wake word). The timeout prevents infinite blocking.
 
     Precondition: state.state must be WAKING when this is called.
-    On success:   state → AWAKE.
-    On failure:   state → CONNECTED  (so the caller can retry).
-
-    Args:
-        robot:   Connected anki_vector.Robot instance (observation mode).
-        state:   StateContainer to update during the wake sequence.
-        timeout: Maximum seconds to wait for behavior control.
-
-    Returns:
-        True if control was granted, False otherwise.
+    On success:   state → AWAKE, camera initialized.
+    On failure:   state → CONNECTED (so the caller can retry).
     """
     if state.state != VectorState.WAKING:
-        logger.warning(
-            "wake_vector called but state is %r (expected 'waking') — aborting",
-            state.state.value,
-        )
+        logger.warning("[WAKE] called but state is %r — aborting", state.state.value)
         return False
 
-    try:
-        logger.info("Requesting behavior control (timeout=%ds)…", timeout)
-        robot.conn.request_control(timeout=timeout)
+    per_attempt = min(ATTEMPT_TIMEOUT, timeout)
+    attempts = min(MAX_ATTEMPTS, max(1, timeout // per_attempt))
+
+    for attempt in range(1, attempts + 1):
+        logger.info("[WAKE] Attempt %d/%d — request_control(timeout=%ds)…", attempt, attempts, per_attempt)
+        try:
+            robot.conn.request_control(timeout=per_attempt)
+        except Exception as exc:
+            logger.warning("[WAKE] Attempt %d failed: %s", attempt, exc)
+            if attempt < attempts:
+                logger.info("[WAKE] Vector may be in deep sleep — touch his back to wake him")
+                continue
+            logger.warning("[WAKE] All %d attempts failed — Vector needs physical wake", attempts)
+            state.transition(VectorState.CONNECTED, error="Vector is in deep sleep. Touch his back to wake him, then try again.")
+            return False
+
+        logger.info("[WAKE] Behavior control granted")
+        try:
+            robot.camera.init_camera_feed()
+            logger.info("[WAKE] Camera feed initialized")
+        except Exception as cam_exc:
+            logger.warning("[WAKE] Camera init failed (non-fatal): %s", cam_exc)
+
         state.transition(VectorState.AWAKE)
-        logger.info("Behavior control granted — Vector is AWAKE")
+        logger.info("[WAKE] Vector is AWAKE and READY")
         return True
-    except Exception as exc:
-        logger.warning("wake_vector failed: %s", exc)
-        # Return to CONNECTED so the caller may retry
-        state.transition(VectorState.CONNECTED)
-        return False
+
+    state.transition(VectorState.CONNECTED, error="Wake failed")
+    return False
 
 
 # ---------------------------------------------------------------------------

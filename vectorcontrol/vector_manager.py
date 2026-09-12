@@ -109,7 +109,6 @@ class VectorManager:
             )
             robot = anki_vector.Robot(serial=self.serial, behavior_control_level=None)
             robot.connect(timeout=15)
-            robot.camera.init_camera_feed()
             self._robot = robot
             self.state.transition(VectorState.CONNECTED)
             logger.info("Connected — firmware %s", self._safe_firmware())
