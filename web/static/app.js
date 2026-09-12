@@ -85,6 +85,7 @@
         $status.textContent = "ONLINE";
         $status.className = "status-badge online";
         $firmware.textContent = `FW ${d.firmware}`;
+        updateControlStatus(!!d.has_control);
       } else {
         $status.textContent = "OFFLINE";
         $status.className = "status-badge offline";
@@ -305,11 +306,32 @@
     }
   });
 
-  const $btnGoHome     = document.getElementById("btn-go-home");
-  const $btnOffCharger = document.getElementById("btn-off-charger");
+  const $btnGoHome        = document.getElementById("btn-go-home");
+  const $btnOffCharger    = document.getElementById("btn-off-charger");
+  const $btnTakeControl   = document.getElementById("btn-take-control");
+  const $btnReleaseControl = document.getElementById("btn-release-control");
+  const $controlStatus    = document.getElementById("control-status");
 
   $btnGoHome.addEventListener("click", () => post("/api/go_home"));
   $btnOffCharger.addEventListener("click", () => post("/api/drive_off_charger"));
+  $btnTakeControl.addEventListener("click", async () => {
+    const r = await post("/api/take_control");
+    if (r && r.has_control) updateControlStatus(true);
+  });
+  $btnReleaseControl.addEventListener("click", async () => {
+    await post("/api/release_control");
+    updateControlStatus(false);
+  });
+
+  function updateControlStatus(hasControl) {
+    if (hasControl) {
+      $controlStatus.textContent = "CONTROL";
+      $controlStatus.className = "status-badge online";
+    } else {
+      $controlStatus.textContent = "NO CONTROL";
+      $controlStatus.className = "status-badge offline";
+    }
+  }
 
   // -----------------------------------------------------------------------
   // Speed control

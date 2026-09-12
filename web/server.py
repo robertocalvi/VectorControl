@@ -47,6 +47,7 @@ logger = logging.getLogger("vectorcontrol.web")
 ROBOT: anki_vector.Robot | None = None
 ROBOT_LOCK = threading.Lock()
 SERIAL = "00401c2e"
+_has_control: bool = False
 
 # Speed presets: (drive_mmps, turn_mmps, label)
 SPEED_PRESETS = [
@@ -74,15 +75,47 @@ _lift_height: float = 0.0
 
 
 def connect_robot() -> anki_vector.Robot:
-    """Connect to Vector (blocking)."""
-    global ROBOT
-    logger.info("Connecting to Vector (serial=%s) …", SERIAL)
-    robot = anki_vector.Robot(serial=SERIAL, behavior_activation_timeout=30)
-    robot.connect(timeout=30)
+    """Connect to Vector in observation mode (no behavior control). Starts instantly even if Vector is asleep."""
+    global ROBOT, _has_control
+    logger.info("Connecting to Vector (serial=%s) in observation mode …", SERIAL)
+    robot = anki_vector.Robot(serial=SERIAL, behavior_control_level=None)
+    robot.connect(timeout=15)
     robot.camera.init_camera_feed()
     ROBOT = robot
-    logger.info("Connected — firmware %s", robot.get_version_state().os_version)
+    _has_control = False
+    logger.info("Connected (observation mode) — firmware %s", robot.get_version_state().os_version)
     return robot
+
+
+def request_control() -> bool:
+    """Request behavior control from Vector. Returns True if granted."""
+    global _has_control
+    if ROBOT is None:
+        return False
+    if _has_control:
+        return True
+    try:
+        logger.info("Requesting behavior control …")
+        ROBOT.conn.request_control(timeout=10)
+        _has_control = True
+        logger.info("Behavior control granted")
+        return True
+    except Exception as exc:
+        logger.warning("Failed to get control: %s", exc)
+        return False
+
+
+def release_control() -> None:
+    """Release behavior control back to Vector."""
+    global _has_control
+    if ROBOT is None or not _has_control:
+        return
+    try:
+        ROBOT.conn.release_control()
+        _has_control = False
+        logger.info("Behavior control released")
+    except Exception:
+        pass
 
 
 def disconnect_robot() -> None:
@@ -140,6 +173,7 @@ async def api_status():
         ver = ROBOT.get_version_state()
         return {
             "connected": True,
+            "has_control": _has_control,
             "firmware": ver.os_version,
             "battery_level": bat.battery_level,
             "battery_volts": round(bat.battery_volts, 2),
@@ -150,15 +184,39 @@ async def api_status():
         return JSONResponse({"connected": False, "error": str(exc)}, status_code=500)
 
 
+@app.post("/api/take_control")
+async def api_take_control():
+    if ROBOT is None:
+        return JSONResponse({"error": "not connected"}, status_code=503)
+    ok = request_control()
+    return {"ok": ok, "has_control": _has_control}
+
+
+@app.post("/api/release_control")
+async def api_release_control():
+    if ROBOT is None:
+        return JSONResponse({"error": "not connected"}, status_code=503)
+    release_control()
+    return {"ok": True, "has_control": _has_control}
+
+
 # ---------------------------------------------------------------------------
 # Motor control
 # ---------------------------------------------------------------------------
+def _ensure_control():
+    """Auto-request behavior control before any motor command."""
+    if not _has_control:
+        if not request_control():
+            raise RuntimeError("Cannot get behavior control — is Vector awake?")
+
+
 @app.post("/api/drive")
 async def api_drive(action: str = "stop"):
     """Drive wheels.  action: forward | backward | left | right | stop"""
     if ROBOT is None:
         return JSONResponse({"error": "not connected"}, status_code=503)
     try:
+        _ensure_control()
         ds = _drive_speed()
         ts = _turn_speed()
         if action == "forward":
@@ -183,6 +241,7 @@ async def api_head(direction: str = "stop"):
     if ROBOT is None:
         return JSONResponse({"error": "not connected"}, status_code=503)
     try:
+        _ensure_control()
         if direction == "up":
             _head_angle_deg = min(_head_angle_deg + 5, 45)
         elif direction == "down":
@@ -200,7 +259,8 @@ async def api_head_stop():
     if ROBOT is None:
         return JSONResponse({"error": "not connected"}, status_code=503)
     try:
-        ROBOT.motors.set_head_motor(0)
+        if _has_control:
+            ROBOT.motors.set_head_motor(0)
         return {"ok": True}
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
@@ -213,6 +273,7 @@ async def api_lift(direction: str = "stop"):
     if ROBOT is None:
         return JSONResponse({"error": "not connected"}, status_code=503)
     try:
+        _ensure_control()
         if direction == "up":
             ROBOT.motors.set_lift_motor(LIFT_SPEED)
         elif direction == "down":
@@ -229,6 +290,8 @@ async def api_lift_stop():
     if ROBOT is None:
         return JSONResponse({"error": "not connected"}, status_code=503)
     try:
+        if not _has_control:
+            return {"ok": True}
         ROBOT.motors.set_lift_motor(0)
         return {"ok": True}
     except Exception as exc:
@@ -255,6 +318,7 @@ async def api_go_home():
     if ROBOT is None:
         return JSONResponse({"error": "not connected"}, status_code=503)
     try:
+        _ensure_control()
         threading.Thread(target=ROBOT.behavior.drive_on_charger, daemon=True).start()
         return {"ok": True}
     except Exception as exc:
@@ -266,6 +330,7 @@ async def api_drive_off_charger():
     if ROBOT is None:
         return JSONResponse({"error": "not connected"}, status_code=503)
     try:
+        _ensure_control()
         threading.Thread(target=ROBOT.behavior.drive_off_charger, daemon=True).start()
         return {"ok": True}
     except Exception as exc:
@@ -278,7 +343,8 @@ async def api_stop():
     if ROBOT is None:
         return JSONResponse({"error": "not connected"}, status_code=503)
     try:
-        ROBOT.motors.stop_all_motors()
+        if _has_control:
+            ROBOT.motors.stop_all_motors()
         return {"ok": True}
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
@@ -286,10 +352,10 @@ async def api_stop():
 
 @app.post("/api/say")
 async def api_say(text: str = "Hello"):
-    """Make Vector speak."""
     if ROBOT is None:
         return JSONResponse({"error": "not connected"}, status_code=503)
     try:
+        _ensure_control()
         ROBOT.behavior.say_text(text)
         return {"ok": True, "text": text}
     except Exception as exc:
