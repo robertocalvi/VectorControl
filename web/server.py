@@ -35,6 +35,7 @@ from fastapi.staticfiles import StaticFiles
 import uvicorn
 
 from vectorcontrol.vector_manager import VectorManager
+from vectorcontrol.wirepod_manager import ensure_wirepod, is_wirepod_running
 
 logging.basicConfig(
     level=logging.INFO,
@@ -70,6 +71,9 @@ def _turn_speed() -> int:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    wirepod_ok = await asyncio.to_thread(ensure_wirepod)
+    if not wirepod_ok:
+        logger.error("Wire-Pod is not available — Vector connection will fail")
     await asyncio.to_thread(manager.connect)
     yield
     await asyncio.to_thread(manager.disconnect)
@@ -99,7 +103,11 @@ async def _auto_reconnect():
             return
         _reconnecting = True
         try:
-            logger.info("Auto-reconnect: connection lost, reconnecting...")
+            logger.info("Auto-reconnect: connection lost, checking Wire-Pod...")
+            wirepod_ok = await asyncio.to_thread(ensure_wirepod)
+            if not wirepod_ok:
+                logger.error("Auto-reconnect: Wire-Pod not available, aborting")
+                return
             await asyncio.to_thread(manager.disconnect)
             await asyncio.sleep(2)
             await asyncio.to_thread(manager.connect)
@@ -108,6 +116,12 @@ async def _auto_reconnect():
             logger.warning("Auto-reconnect failed: %s", exc)
         finally:
             _reconnecting = False
+
+
+@app.get("/api/wirepod")
+async def api_wirepod():
+    running = await asyncio.to_thread(is_wirepod_running)
+    return {"running": running, "url": "http://192.168.1.3:8080"}
 
 
 @app.get("/api/status")
