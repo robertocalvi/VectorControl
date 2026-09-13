@@ -73,6 +73,25 @@ def _get_wirepod_ip() -> str:
     return "192.168.1.3"
 
 
+def _patch_sdk_control_flags(robot: anki_vector.Robot) -> None:
+    """Fix SDK internals after request_control() in observation mode.
+
+    When connected with behavior_control_level=None, the SDK sets two flags
+    that block ALL motor/behavior commands even after control is granted:
+    1. _behavior_control_level = None → requires_behavior_control returns False
+       → commands raise VectorControlException
+    2. control_granted_event is never set → commands wait forever ("Delaying...")
+
+    This patches both flags so motor commands execute immediately.
+    """
+    from anki_vector.connection import ControlPriorityLevel
+    if robot.conn._behavior_control_level is None:
+        robot.conn._behavior_control_level = ControlPriorityLevel.DEFAULT_PRIORITY
+    if not robot.conn.control_granted_event.is_set():
+        robot.conn._control_events._granted_event.set()
+    logger.info("[WAKE] SDK control flags patched")
+
+
 def wake_vector(
     robot: anki_vector.Robot,
     state: StateContainer,
@@ -108,14 +127,7 @@ def wake_vector(
         logger.info("[WAKE] Requesting behavior control (timeout=%ds)…", CONTROL_TIMEOUT)
         try:
             robot.conn.request_control(timeout=CONTROL_TIMEOUT)
-            # Patch SDK internals: when connected with behavior_control_level=None,
-            # the SDK refuses motor commands even after request_control() succeeds.
-            # Setting _behavior_control_level makes requires_behavior_control return True,
-            # which allows motor commands to proceed.
-            from anki_vector.connection import ControlPriorityLevel
-            if robot.conn._behavior_control_level is None:
-                robot.conn._behavior_control_level = ControlPriorityLevel.DEFAULT_PRIORITY
-                logger.info("[WAKE] Patched _behavior_control_level for motor commands")
+            _patch_sdk_control_flags(robot)
         except Exception as exc:
             logger.warning("[WAKE] Attempt %d: request_control failed: %s", attempt, exc)
             if attempt < MAX_ATTEMPTS:
