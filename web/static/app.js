@@ -265,30 +265,52 @@
   });
 
   // -----------------------------------------------------------------------
-  // Motor control — mouse / touch buttons
+  // Motor control — click buttons (toggle: click to start, click again or STOP to stop)
   // -----------------------------------------------------------------------
-  function setupButton(btn, downFn, upFn) {
-    btn.addEventListener("mousedown",  (e) => { e.preventDefault(); downFn(); btn.classList.add("active"); });
-    btn.addEventListener("mouseup",    ()  => { upFn(); btn.classList.remove("active"); });
-    btn.addEventListener("mouseleave", ()  => { upFn(); btn.classList.remove("active"); });
-    btn.addEventListener("touchstart", (e) => { e.preventDefault(); downFn(); btn.classList.add("active"); });
-    btn.addEventListener("touchend",   ()  => { upFn(); btn.classList.remove("active"); });
+  let activeDrive = null;
+
+  function stopAllDrive() {
+    activeDrive = null;
+    [$btnFwd, $btnBack, $btnLeft, $btnRight].forEach(b => b.classList.remove("active"));
+    post("/api/drive", { action: "stop" });
   }
 
-  // Drive
-  setupButton($btnFwd,   () => post("/api/drive", { action: "forward" }),  () => post("/api/drive", { action: "stop" }));
-  setupButton($btnBack,  () => post("/api/drive", { action: "backward" }), () => post("/api/drive", { action: "stop" }));
-  setupButton($btnLeft,  () => post("/api/drive", { action: "left" }),     () => post("/api/drive", { action: "stop" }));
-  setupButton($btnRight, () => post("/api/drive", { action: "right" }),    () => post("/api/drive", { action: "stop" }));
-  $btnStop.addEventListener("click", () => post("/api/stop"));
+  function toggleDrive(btn, action) {
+    if (activeDrive === action) {
+      stopAllDrive();
+    } else {
+      stopAllDrive();
+      activeDrive = action;
+      btn.classList.add("active");
+      post("/api/drive", { action });
+    }
+  }
 
-  // Head
-  setupButton($btnHeadUp,   () => post("/api/head", { direction: "up" }),   () => post("/api/head/stop"));
-  setupButton($btnHeadDown, () => post("/api/head", { direction: "down" }), () => post("/api/head/stop"));
+  $btnFwd.addEventListener("click",   () => toggleDrive($btnFwd, "forward"));
+  $btnBack.addEventListener("click",  () => toggleDrive($btnBack, "backward"));
+  $btnLeft.addEventListener("click",  () => toggleDrive($btnLeft, "left"));
+  $btnRight.addEventListener("click", () => toggleDrive($btnRight, "right"));
+  $btnStop.addEventListener("click",  () => { stopAllDrive(); post("/api/stop"); });
 
-  // Lift
-  setupButton($btnLiftUp,   () => post("/api/lift", { direction: "up" }),   () => post("/api/lift/stop"));
-  setupButton($btnLiftDown, () => post("/api/lift", { direction: "down" }), () => post("/api/lift/stop"));
+  // Head — click to move for 0.5s
+  $btnHeadUp.addEventListener("click", () => {
+    post("/api/head", { direction: "up" });
+    setTimeout(() => post("/api/head/stop"), 500);
+  });
+  $btnHeadDown.addEventListener("click", () => {
+    post("/api/head", { direction: "down" });
+    setTimeout(() => post("/api/head/stop"), 500);
+  });
+
+  // Lift — click to move for 0.5s
+  $btnLiftUp.addEventListener("click", () => {
+    post("/api/lift", { direction: "up" });
+    setTimeout(() => post("/api/lift/stop"), 500);
+  });
+  $btnLiftDown.addEventListener("click", () => {
+    post("/api/lift", { direction: "down" });
+    setTimeout(() => post("/api/lift/stop"), 500);
+  });
 
   // -----------------------------------------------------------------------
   // Speech
