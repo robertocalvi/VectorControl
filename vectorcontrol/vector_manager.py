@@ -18,10 +18,12 @@ from vectorcontrol import wake_manager
 logger = logging.getLogger(__name__)
 
 _DEFAULT_SERIAL = "00401c2e"
+ROBOT_DEBUG_PORT = 8889
 
 HEARTBEAT_INTERVAL = 10
 RECONNECT_INTERVAL = 15
 CONNECT_TIMEOUT = 15
+RECOVERY_WAIT = 30
 
 
 class VectorManager:
@@ -130,7 +132,7 @@ class VectorManager:
         logger.info("Disconnected from Vector")
 
     def _force_reconnect(self) -> None:
-        logger.info("Force reconnect — dropping current connection")
+        logger.info("Force reconnect — dropping gRPC to let Vector recover")
         self._stop_heartbeat()
         robot = self._robot
         self._robot = None
@@ -140,8 +142,26 @@ class VectorManager:
                 robot.disconnect()
             except Exception:
                 pass
-        time.sleep(2)
-        self._try_connect()
+
+        self._send_wake_bursts()
+        logger.info("Waiting 30s for Vector to self-restart…")
+        if self._shutdown.wait(timeout=30):
+            return
+
+    def _send_wake_bursts(self) -> None:
+        import requests as _req
+        for burst in range(3):
+            for _ in range(3):
+                try:
+                    _req.get(
+                        f"http://192.168.1.30:{ROBOT_DEBUG_PORT}/consolevarset"
+                        "?key=FakeButtonPressType&value=singlePressDetected",
+                        timeout=3,
+                    )
+                except Exception:
+                    pass
+                time.sleep(0.3)
+            time.sleep(1)
 
     # ------------------------------------------------------------------
     # Background reconnect loop — retries forever until connected
