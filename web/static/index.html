@@ -58,6 +58,7 @@
           <div class="camera-badges">
             <span class="badge">HD</span>
             <span class="badge" id="fps">0 FPS</span>
+            <button class="badge-btn" id="btn-overlay-toggle" title="Drive overlay">&#127918;</button>
             <button class="badge-btn" id="btn-fullscreen" title="Fullscreen">&#x26F6;</button>
             <button class="badge-btn" id="btn-screenshot" title="Screenshot">&#128247;</button>
           </div>
@@ -69,6 +70,20 @@
               <div class="spinner"></div>
               <span>Connecting camera...</span>
             </div>
+          </div>
+          <div class="drive-overlay hidden" id="drive-overlay">
+            <div class="ov-dpad">
+              <div></div>
+              <button class="ov-btn ov-up" data-ov="forward">&#9650;</button>
+              <div></div>
+              <button class="ov-btn ov-left" data-ov="left">&#9664;</button>
+              <button class="ov-btn ov-stop" data-ov="stop">&#9632;</button>
+              <button class="ov-btn ov-right" data-ov="right">&#9654;</button>
+              <div></div>
+              <button class="ov-btn ov-down" data-ov="backward">&#9660;</button>
+              <div></div>
+            </div>
+            <div class="ov-speed" id="ov-speed">80 mm/s</div>
           </div>
         </div>
       </section>

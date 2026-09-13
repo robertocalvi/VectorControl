@@ -418,6 +418,8 @@
       const bl = parseInt(btn.dataset.level);
       btn.classList.toggle("active", bl === level);
     });
+    var el = document.getElementById("ov-speed");
+    if (el) el.textContent = SPEED_PRESETS[level].mmps;
   }
 
   function setSpeed(level) {
@@ -496,6 +498,34 @@
   document.querySelectorAll(".phrase-btn").forEach((btn) => {
     btn.addEventListener("click", () => sayText(btn.dataset.phrase));
   });
+
+  // -----------------------------------------------------------------------
+  // Drive overlay on camera
+  // -----------------------------------------------------------------------
+  const $driveOverlay = document.getElementById("drive-overlay");
+  const $btnOverlayToggle = document.getElementById("btn-overlay-toggle");
+  const $ovSpeed = document.getElementById("ov-speed");
+
+  if ($btnOverlayToggle && $driveOverlay) {
+    $btnOverlayToggle.addEventListener("click", () => {
+      const visible = $driveOverlay.classList.toggle("hidden");
+      $btnOverlayToggle.classList.toggle("active", !visible);
+    });
+
+    document.querySelectorAll(".ov-btn").forEach((btn) => {
+      const action = btn.dataset.ov;
+      if (action === "stop") {
+        btn.addEventListener("click", () => post("/api/stop"));
+        btn.addEventListener("touchstart", (e) => { e.preventDefault(); post("/api/stop"); }, { passive: false });
+      } else {
+        setupHoldButton(
+          btn,
+          () => post("/api/drive", { action }),
+          () => post("/api/drive", { action: "stop" })
+        );
+      }
+    });
+  }
 
   // -----------------------------------------------------------------------
   // Screenshot
