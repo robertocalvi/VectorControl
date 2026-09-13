@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# VectorControl — Anki Vector Robot Controller
+# Copyright (c) 2026 Roberto Calvi — Calvi Tecnologie
+# Email: roberto@calvitecnologie.it
+# License: MIT (see LICENSE file)
+
 """Test the Vector wake sequence end-to-end.
 
 Usage (from VectorControl/ directory):

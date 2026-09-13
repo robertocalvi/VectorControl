@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# VectorControl — Anki Vector Robot Controller
+# Copyright (c) 2026 Roberto Calvi — Calvi Tecnologie
+# Email: roberto@calvitecnologie.it
+# License: MIT (see LICENSE file)
+
 """Test wake methods via Wire-Pod API and Vector's internal debug port.
 
 Tests three levels:

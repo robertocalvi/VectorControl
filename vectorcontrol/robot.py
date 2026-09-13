@@ -1,3 +1,8 @@
+# VectorControl — Anki Vector Robot Controller
+# Copyright (c) 2026 Roberto Calvi — Calvi Tecnologie
+# Email: roberto@calvitecnologie.it
+# License: MIT (see LICENSE file)
+
 """VectorRobot - high-level command interface for Anki Vector.
 
 All speed values are conservative and well within safe limits.

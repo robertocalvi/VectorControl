@@ -1,3 +1,8 @@
+# VectorControl — Anki Vector Robot Controller
+# Copyright (c) 2026 Roberto Calvi — Calvi Tecnologie
+# Email: roberto@calvitecnologie.it
+# License: MIT (see LICENSE file)
+
 """VectorState — wake state machine enum and thread-safe state container.
 
 States:

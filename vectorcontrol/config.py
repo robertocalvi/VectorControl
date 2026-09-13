@@ -1,3 +1,8 @@
+# VectorControl — Anki Vector Robot Controller
+# Copyright (c) 2026 Roberto Calvi — Calvi Tecnologie
+# Email: roberto@calvitecnologie.it
+# License: MIT (see LICENSE file)
+
 """Configuration loader for VectorControl.
 
 Reads .env and ~/.anki_vector/sdk_config.ini to build a RobotConfig.

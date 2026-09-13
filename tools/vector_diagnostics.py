@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# VectorControl — Anki Vector Robot Controller
+# Copyright (c) 2026 Roberto Calvi — Calvi Tecnologie
+# Email: roberto@calvitecnologie.it
+# License: MIT (see LICENSE file)
+
 """Vector Robot Diagnostics
 
 Comprehensive diagnostics for the Anki Vector + Wire-Pod setup.
