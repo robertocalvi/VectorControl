@@ -475,7 +475,12 @@ async def ws_telemetry(ws: WebSocket):
 
 if __name__ == "__main__":
     def _shutdown(sig, frame):
-        logger.info("Shutting down …")
+        logger.info("Shutting down — disconnecting from Vector…")
+        try:
+            manager.disconnect()
+            logger.info("Graceful disconnect complete")
+        except Exception as exc:
+            logger.warning("Disconnect error during shutdown: %s", exc)
         sys.exit(0)
 
     signal.signal(signal.SIGINT, _shutdown)
