@@ -514,16 +514,11 @@
 
     document.querySelectorAll(".ov-btn").forEach((btn) => {
       const action = btn.dataset.ov;
-      if (action === "stop") {
-        btn.addEventListener("click", () => post("/api/stop"));
-        btn.addEventListener("touchstart", (e) => { e.preventDefault(); post("/api/stop"); }, { passive: false });
-      } else {
-        setupHoldButton(
-          btn,
-          () => post("/api/drive", { action }),
-          () => post("/api/drive", { action: "stop" })
-        );
-      }
+      setupHoldButton(
+        btn,
+        () => post("/api/drive", { action }),
+        () => post("/api/drive", { action: "stop" })
+      );
     });
   }
 

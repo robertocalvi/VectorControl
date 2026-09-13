@@ -308,23 +308,21 @@ body {
 
 .ov-dpad {
   display: grid;
-  grid-template-columns: repeat(3, 52px);
-  grid-template-rows: repeat(3, 44px);
-  gap: 4px;
+  grid-template-columns: repeat(3, 56px);
+  grid-template-rows: repeat(3, 48px);
+  gap: 6px;
   pointer-events: auto;
 }
 
 .ov-btn {
-  background: rgba(0, 229, 255, 0.12);
-  border: 1px solid rgba(0, 229, 255, 0.35);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: var(--radius-xs);
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 18px;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 20px;
   cursor: pointer;
   user-select: none;
   -webkit-user-select: none;
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -332,22 +330,9 @@ body {
 }
 
 .ov-btn:active, .ov-btn.active {
-  background: rgba(0, 229, 255, 0.45);
-  border-color: var(--accent);
-  color: #fff;
-  box-shadow: 0 0 16px rgba(0, 229, 255, 0.4);
-}
-
-.ov-stop {
-  background: rgba(255, 82, 131, 0.15);
-  border-color: rgba(255, 82, 131, 0.4);
-  color: rgba(255, 82, 131, 0.8);
-  font-size: 14px;
-}
-
-.ov-stop:active {
-  background: rgba(255, 82, 131, 0.5);
-  border-color: var(--danger);
+  background: rgba(0, 229, 255, 0.2);
+  border-color: rgba(0, 229, 255, 0.5);
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .ov-speed {
