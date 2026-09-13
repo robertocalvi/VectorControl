@@ -276,6 +276,35 @@ Calling `robot.anim.play_animation()` from the SDK causes the entire gRPC connec
 
 **Solution:** Never use `robot.anim.play_animation()`. Use `robot.behavior.say_text()` and `robot.motors.*` instead — these are stable and never crash the connection. The server also now includes auto-reconnect logic: if the gRPC connection dies mid-session, it automatically attempts to reconnect.
 
+### Firmware Errors (Not Fixable via Software)
+
+These errors are caused by Vector's firmware and require a **physical reboot** to resolve: hold the back button for 15 seconds (power off), wait 5 seconds, press briefly (power on). The VectorControl server will reconnect automatically after the reboot.
+
+#### Error 800 — gRPC Connection Lost
+
+![Error 800](docs/images/error-800.png)
+
+Vector cannot reach Wire-Pod via gRPC. Causes: Wire-Pod not running, zombie gRPC connections after `kill -9`, Wire-Pod stuck.
+
+#### Error 915 — DNS Failure
+
+![Error 915](docs/images/error-915.png)
+
+Vector cannot resolve `chipper.api.anki.com` to Wire-Pod. Happens after deep sleep or crash — Vector loses its DNS configuration.
+
+#### Error 917 — Authentication Failure
+
+![Error 917](docs/images/error-917.png)
+
+Vector cannot authenticate with Wire-Pod. The TLS certificate or JWT token became invalid after a crash or connection interruption.
+
+**Recovery for all three errors:**
+1. Hold Vector's back button for **15 seconds** (power off)
+2. Wait 5 seconds
+3. Press briefly (power on)
+4. Wait for Vector's eyes to appear (30-60 seconds)
+5. The VectorControl server reconnects automatically — no need to restart it
+
 ### Final Working Configuration
 
 ```ini
