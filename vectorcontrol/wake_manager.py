@@ -30,9 +30,10 @@ logger = logging.getLogger(__name__)
 
 ROBOT_DEBUG_PORT = 8889
 WIREPOD_PORT = 8080
-MAX_ATTEMPTS = 3
-POST_WAKE_DELAY = 2.0
-CONTROL_TIMEOUT = 5
+MAX_ATTEMPTS = 5
+POST_WAKE_DELAY = 1.0
+CONTROL_TIMEOUT = 3
+WAKE_BURSTS = 3
 
 
 def _send_fake_button_press(robot_ip: str) -> bool:
@@ -98,13 +99,11 @@ def wake_vector(
     for attempt in range(1, MAX_ATTEMPTS + 1):
         logger.info("[WAKE] Attempt %d/%d", attempt, MAX_ATTEMPTS)
 
-        wake_sent = _send_fake_button_press(robot_ip)
-        if not wake_sent:
-            wake_sent = _send_wirepod_trigger(_get_wirepod_ip(), serial)
-
-        if wake_sent:
-            logger.info("[WAKE] Wake stimulus sent — waiting %.1fs for Vector to react", POST_WAKE_DELAY)
-            time.sleep(POST_WAKE_DELAY)
+        for burst in range(WAKE_BURSTS):
+            _send_fake_button_press(robot_ip)
+            time.sleep(0.3)
+        logger.info("[WAKE] Sent %d wake bursts — waiting %.1fs", WAKE_BURSTS, POST_WAKE_DELAY)
+        time.sleep(POST_WAKE_DELAY)
 
         logger.info("[WAKE] Requesting behavior control (timeout=%ds)…", CONTROL_TIMEOUT)
         try:
