@@ -86,6 +86,30 @@ async def index():
     return (STATIC_DIR / "index.html").read_text()
 
 
+_reconnect_lock = asyncio.Lock()
+_reconnecting = False
+
+
+async def _auto_reconnect():
+    global _reconnecting
+    if _reconnecting:
+        return
+    async with _reconnect_lock:
+        if _reconnecting:
+            return
+        _reconnecting = True
+        try:
+            logger.info("Auto-reconnect: connection lost, reconnecting...")
+            await asyncio.to_thread(manager.disconnect)
+            await asyncio.sleep(2)
+            await asyncio.to_thread(manager.connect)
+            logger.info("Auto-reconnect: reconnected successfully")
+        except Exception as exc:
+            logger.warning("Auto-reconnect failed: %s", exc)
+        finally:
+            _reconnecting = False
+
+
 @app.get("/api/status")
 async def api_status():
     robot = manager.robot
@@ -104,6 +128,7 @@ async def api_status():
             "is_on_charger": bat.is_on_charger_platform,
         }
     except Exception as exc:
+        asyncio.create_task(_auto_reconnect())
         return JSONResponse(
             {"connected": False, "error": str(exc), **manager.state.to_dict()},
             status_code=500,
@@ -303,16 +328,15 @@ async def api_quick_action(action: str = "say_hello"):
         if action == "say_hello":
             await asyncio.to_thread(robot.behavior.say_text, "Hello! I am Vector!")
         elif action == "be_happy":
-            await asyncio.to_thread(robot.anim.play_animation, "anim_greeting_happy_01")
+            await asyncio.to_thread(robot.behavior.say_text, "I am so happy!")
         elif action == "look_around":
-            await asyncio.to_thread(robot.behavior.say_text, "Let me look around!")
             await asyncio.to_thread(robot.motors.set_head_motor, 3.0)
             await asyncio.sleep(1)
             await asyncio.to_thread(robot.motors.set_wheel_motors, 60, -60)
             await asyncio.sleep(2)
             await asyncio.to_thread(robot.motors.stop_all_motors)
         elif action == "play_animation":
-            await asyncio.to_thread(robot.anim.play_animation, "anim_eyepose_happy")
+            await asyncio.to_thread(robot.behavior.say_text, "Watch this!")
         elif action == "take_photo":
             await asyncio.to_thread(robot.behavior.say_text, "Cheese!")
         else:

@@ -49,23 +49,35 @@ class VectorManager:
     def has_control(self) -> bool:
         return self.state.has_control
 
-    def connect(self) -> None:
+    def connect(self, retries: int = 3, delay: float = 5.0) -> None:
         with self._conn_lock:
             if self.state.state not in (VectorState.DISCONNECTED, VectorState.ERROR):
                 return
             self.state.transition(VectorState.CONNECTING)
 
-        try:
-            logger.info("Connecting to Vector (serial=%s) in observation mode…", self.serial)
-            robot = anki_vector.Robot(serial=self.serial, behavior_control_level=None)
-            robot.connect(timeout=15)
-            self._robot = robot
-            self.state.transition(VectorState.CONNECTED)
-            logger.info("Connected — firmware %s", self._safe_firmware())
-        except Exception as exc:
-            self._robot = None
-            self.state.transition(VectorState.ERROR, str(exc))
-            logger.error("Connection failed: %s", exc)
+        import time
+        for attempt in range(1, retries + 1):
+            try:
+                logger.info("Connecting to Vector (serial=%s) attempt %d/%d…", self.serial, attempt, retries)
+                robot = anki_vector.Robot(serial=self.serial, behavior_control_level=None)
+                robot.connect(timeout=15)
+                self._robot = robot
+                self.state.transition(VectorState.CONNECTED)
+                logger.info("Connected — firmware %s", self._safe_firmware())
+                return
+            except Exception as exc:
+                logger.warning("Connection attempt %d failed: %s", attempt, exc)
+                try:
+                    robot.disconnect()
+                except Exception:
+                    pass
+                if attempt < retries:
+                    logger.info("Retrying in %.0fs…", delay)
+                    time.sleep(delay)
+
+        self._robot = None
+        self.state.transition(VectorState.ERROR, "All connection attempts failed")
+        logger.error("Connection failed after %d attempts", retries)
 
     def disconnect(self) -> None:
         with self._conn_lock:
