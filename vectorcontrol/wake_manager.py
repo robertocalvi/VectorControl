@@ -109,6 +109,14 @@ def wake_vector(
         logger.info("[WAKE] Requesting behavior control (timeout=%ds)…", CONTROL_TIMEOUT)
         try:
             robot.conn.request_control(timeout=CONTROL_TIMEOUT)
+            # Patch SDK internals: when connected with behavior_control_level=None,
+            # the SDK refuses motor commands even after request_control() succeeds.
+            # Setting _behavior_control_level makes requires_behavior_control return True,
+            # which allows motor commands to proceed.
+            from anki_vector.connection import ControlPriorityLevel
+            if robot.conn._behavior_control_level is None:
+                robot.conn._behavior_control_level = ControlPriorityLevel.DEFAULT_PRIORITY
+                logger.info("[WAKE] Patched _behavior_control_level for motor commands")
         except Exception as exc:
             logger.warning("[WAKE] Attempt %d: request_control failed: %s", attempt, exc)
             if attempt < MAX_ATTEMPTS:
