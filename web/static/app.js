@@ -523,6 +523,64 @@
   }
 
   // -----------------------------------------------------------------------
+  // Swipe on camera to move head up/down
+  // -----------------------------------------------------------------------
+  const $camContainer = document.querySelector(".camera-container");
+  if ($camContainer) {
+    let dragActive = false;
+    let lastY = 0;
+    let headCmd = null;
+    const DRAG_THRESHOLD = 8;
+
+    function startDrag(y) {
+      dragActive = true;
+      lastY = y;
+      headCmd = null;
+    }
+
+    function moveDrag(y) {
+      if (!dragActive) return;
+      const dy = lastY - y;
+      if (Math.abs(dy) < DRAG_THRESHOLD) return;
+      const dir = dy > 0 ? "up" : "down";
+      if (headCmd !== dir) {
+        headCmd = dir;
+        post("/api/head", { direction: dir });
+      }
+      lastY = y;
+    }
+
+    function endDrag() {
+      if (!dragActive) return;
+      dragActive = false;
+      if (headCmd) {
+        post("/api/head/stop");
+        headCmd = null;
+      }
+    }
+
+    $camContainer.addEventListener("mousedown", (e) => {
+      if (e.target.closest(".ov-btn, .camera-overlay")) return;
+      e.preventDefault();
+      startDrag(e.clientY);
+    });
+    document.addEventListener("mousemove", (e) => moveDrag(e.clientY));
+    document.addEventListener("mouseup", endDrag);
+
+    $camContainer.addEventListener("touchstart", (e) => {
+      if (e.target.closest(".ov-btn, .camera-overlay")) return;
+      startDrag(e.touches[0].clientY);
+    }, { passive: true });
+    $camContainer.addEventListener("touchmove", (e) => {
+      if (!dragActive) return;
+      e.preventDefault();
+      moveDrag(e.touches[0].clientY);
+    }, { passive: false });
+    $camContainer.addEventListener("touchend", endDrag);
+    $camContainer.addEventListener("touchcancel", endDrag);
+  }
+
+  // -----------------------------------------------------------------------
   // Screenshot
   // -----------------------------------------------------------------------
   const $btnScreenshot = document.getElementById("btn-screenshot");
