@@ -133,6 +133,49 @@ body {
 
 .battery-icon { font-size: 16px; }
 
+/* Wire-Pod status */
+.wirepod-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 12px;
+  padding-left: 12px;
+  border-left: 1px solid var(--border);
+}
+
+.wirepod-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--danger);
+  flex-shrink: 0;
+  transition: background var(--transition), box-shadow var(--transition);
+}
+
+.wirepod-dot.online {
+  background: var(--success);
+  box-shadow: 0 0 6px rgba(0, 200, 51, 0.5);
+}
+
+.wirepod-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.wirepod-badge {
+  font-size: 9px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+  transition: color var(--transition);
+}
+
+.wirepod-badge.online { color: var(--success); }
+.wirepod-badge.offline { color: var(--danger); }
+
 /* ===== DASHBOARD LAYOUT ===== */
 .dashboard {
   max-width: 1440px;

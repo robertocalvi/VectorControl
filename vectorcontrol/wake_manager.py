@@ -28,9 +28,9 @@ from vectorcontrol.vector_state import StateContainer, VectorState
 logger = logging.getLogger(__name__)
 
 ROBOT_DEBUG_PORT = 8889
-MAX_ATTEMPTS = 5
-WAKE_BURSTS = 3
-RECONNECT_TIMEOUT = 15
+MAX_ATTEMPTS = 7
+WAKE_BURSTS = 5
+RECONNECT_TIMEOUT = 20
 
 
 def _send_fake_button_press(robot_ip: str) -> bool:

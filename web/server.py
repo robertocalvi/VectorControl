@@ -71,12 +71,10 @@ def _turn_speed() -> int:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    wirepod_ok = await asyncio.to_thread(ensure_wirepod)
-    if not wirepod_ok:
-        logger.error("Wire-Pod is not available — Vector connection will fail")
-    await asyncio.to_thread(manager.connect)
+    await asyncio.to_thread(ensure_wirepod)
+    manager.start()
     yield
-    await asyncio.to_thread(manager.disconnect)
+    manager.stop()
 
 
 app = FastAPI(title="VectorControl", lifespan=lifespan)
@@ -88,34 +86,6 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 @app.get("/", response_class=HTMLResponse)
 async def index():
     return (STATIC_DIR / "index.html").read_text()
-
-
-_reconnect_lock = asyncio.Lock()
-_reconnecting = False
-
-
-async def _auto_reconnect():
-    global _reconnecting
-    if _reconnecting:
-        return
-    async with _reconnect_lock:
-        if _reconnecting:
-            return
-        _reconnecting = True
-        try:
-            logger.info("Auto-reconnect: connection lost, checking Wire-Pod...")
-            wirepod_ok = await asyncio.to_thread(ensure_wirepod)
-            if not wirepod_ok:
-                logger.error("Auto-reconnect: Wire-Pod not available, aborting")
-                return
-            await asyncio.to_thread(manager.disconnect)
-            await asyncio.sleep(2)
-            await asyncio.to_thread(manager.connect)
-            logger.info("Auto-reconnect: reconnected successfully")
-        except Exception as exc:
-            logger.warning("Auto-reconnect failed: %s", exc)
-        finally:
-            _reconnecting = False
 
 
 @app.get("/api/wirepod")
@@ -142,7 +112,6 @@ async def api_status():
             "is_on_charger": bat.is_on_charger_platform,
         }
     except Exception as exc:
-        asyncio.create_task(_auto_reconnect())
         return JSONResponse(
             {"connected": False, "error": str(exc), **manager.state.to_dict()},
             status_code=500,
@@ -489,12 +458,12 @@ async def ws_telemetry(ws: WebSocket):
 
 if __name__ == "__main__":
     def _shutdown(sig, frame):
-        logger.info("Shutting down — disconnecting from Vector…")
+        logger.info("Shutting down — stopping manager…")
         try:
-            manager.disconnect()
-            logger.info("Graceful disconnect complete")
+            manager.stop()
+            logger.info("Graceful shutdown complete")
         except Exception as exc:
-            logger.warning("Disconnect error during shutdown: %s", exc)
+            logger.warning("Shutdown error: %s", exc)
         sys.exit(0)
 
     signal.signal(signal.SIGINT, _shutdown)

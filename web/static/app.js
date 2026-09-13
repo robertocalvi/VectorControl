@@ -19,6 +19,8 @@
   const $fps          = document.getElementById("fps");
   const $topBatPct    = document.getElementById("topbar-battery-pct");
   const $topBatIcon   = document.getElementById("topbar-battery-icon");
+  const $wirepodDot   = document.getElementById("wirepod-dot");
+  const $wirepodBadge = document.getElementById("wirepod-badge");
 
   // DOM refs — Status cards
   const $sBattery     = document.getElementById("s-battery");
@@ -175,6 +177,38 @@
         $btnWake.disabled = false;
         $btnWake.classList.remove("waking");
         $btnWake.querySelector(".action-label").textContent = "WAKE UP VECTOR";
+      }
+    }
+  }
+
+  // -----------------------------------------------------------------------
+  // Wire-Pod status polling
+  // -----------------------------------------------------------------------
+  let lastWirepodState = null;
+
+  async function checkWirePod() {
+    try {
+      const r = await fetch(`${API_BASE}/api/wirepod`);
+      const d = await r.json();
+      const running = !!d.running;
+      if ($wirepodDot) $wirepodDot.className = "wirepod-dot" + (running ? " online" : "");
+      if ($wirepodBadge) {
+        $wirepodBadge.textContent = running ? "ONLINE" : "OFFLINE";
+        $wirepodBadge.className = "wirepod-badge" + (running ? " online" : " offline");
+      }
+      if (lastWirepodState !== null && lastWirepodState !== running) {
+        addEvent("Wire-Pod " + (running ? "connected" : "disconnected"), running ? "success" : "warning");
+      }
+      lastWirepodState = running;
+    } catch {
+      if ($wirepodDot) $wirepodDot.className = "wirepod-dot";
+      if ($wirepodBadge) {
+        $wirepodBadge.textContent = "OFFLINE";
+        $wirepodBadge.className = "wirepod-badge offline";
+      }
+      if (lastWirepodState !== false) {
+        lastWirepodState = false;
+        addEvent("Wire-Pod unreachable", "warning");
       }
     }
   }
@@ -520,6 +554,8 @@
   // -----------------------------------------------------------------------
   checkStatus();
   setInterval(checkStatus, 5000);
+  checkWirePod();
+  setInterval(checkWirePod, 10000);
   connectCamera();
   connectTelemetry();
   addEvent("Dashboard loaded", "info");

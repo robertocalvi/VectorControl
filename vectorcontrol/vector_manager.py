@@ -3,19 +3,11 @@
 # Email: roberto@calvitecnologie.it
 # License: MIT (see LICENSE file)
 
-"""VectorManager — high-level manager that owns the robot connection.
-
-Strategy:
-  1. connect() → observation mode (instant, no behavior control needed)
-  2. wake() → sends FakeButtonPress, disconnects, reconnects with behavior control
-  3. After wake: robot has full control, camera works, motors work
-  4. release() → disconnects, reconnects in observation mode
-"""
-
 from __future__ import annotations
 
 import logging
 import threading
+import time
 from typing import Optional
 
 import anki_vector
@@ -27,6 +19,10 @@ logger = logging.getLogger(__name__)
 
 _DEFAULT_SERIAL = "00401c2e"
 
+HEARTBEAT_INTERVAL = 10
+RECONNECT_INTERVAL = 15
+CONNECT_TIMEOUT = 15
+
 
 class VectorManager:
 
@@ -36,6 +32,9 @@ class VectorManager:
         self._robot: Optional[anki_vector.Robot] = None
         self._conn_lock = threading.Lock()
         self._wake_thread: Optional[threading.Thread] = None
+        self._heartbeat_thread: Optional[threading.Thread] = None
+        self._reconnect_thread: Optional[threading.Thread] = None
+        self._shutdown = threading.Event()
 
     @property
     def robot(self) -> Optional[anki_vector.Robot]:
@@ -49,41 +48,60 @@ class VectorManager:
     def has_control(self) -> bool:
         return self.state.has_control
 
-    def connect(self, retries: int = 3, delay: float = 5.0) -> None:
+    # ------------------------------------------------------------------
+    # Lifecycle
+    # ------------------------------------------------------------------
+
+    def start(self) -> None:
+        self._shutdown.clear()
+        self._start_reconnect_loop()
+
+    def stop(self) -> None:
+        self._shutdown.set()
+        self.disconnect()
+
+    # ------------------------------------------------------------------
+    # Connection
+    # ------------------------------------------------------------------
+
+    def _try_connect(self) -> bool:
+        if self._shutdown.is_set():
+            return False
         with self._conn_lock:
+            if self._robot is not None:
+                return True
             if self.state.state not in (VectorState.DISCONNECTED, VectorState.ERROR):
-                return
+                if self.state.state == VectorState.CONNECTING:
+                    return False
+                return self._robot is not None
             self.state.transition(VectorState.CONNECTING)
 
-        import time
-        for attempt in range(1, retries + 1):
+        try:
+            logger.info("Connecting to Vector (serial=%s)…", self.serial)
+            robot = anki_vector.Robot(serial=self.serial, behavior_control_level=None)
+            robot.connect(timeout=CONNECT_TIMEOUT)
+            self._robot = robot
+            self.state.transition(VectorState.CONNECTED)
+            logger.info("Connected — firmware %s", self._safe_firmware())
+            self._start_heartbeat()
+            return True
+        except Exception as exc:
+            logger.warning("Connection failed: %s", exc)
             try:
-                logger.info("Connecting to Vector (serial=%s) attempt %d/%d…", self.serial, attempt, retries)
-                robot = anki_vector.Robot(serial=self.serial, behavior_control_level=None)
-                robot.connect(timeout=15)
-                self._robot = robot
-                self.state.transition(VectorState.CONNECTED)
-                logger.info("Connected — firmware %s", self._safe_firmware())
-                return
-            except Exception as exc:
-                logger.warning("Connection attempt %d failed: %s", attempt, exc)
-                try:
-                    robot.disconnect()
-                except Exception:
-                    pass
-                if attempt < retries:
-                    logger.info("Retrying in %.0fs…", delay)
-                    time.sleep(delay)
-
-        self._robot = None
-        self.state.transition(VectorState.ERROR, "All connection attempts failed")
-        logger.error("Connection failed after %d attempts", retries)
+                robot.disconnect()
+            except Exception:
+                pass
+            self._robot = None
+            self.state.transition(VectorState.DISCONNECTED)
+            return False
 
     def disconnect(self) -> None:
+        self._stop_heartbeat()
         with self._conn_lock:
             robot = self._robot
             self._robot = None
-            self.state.transition(VectorState.DISCONNECTED)
+            if self.state.state != VectorState.DISCONNECTED:
+                self.state.transition(VectorState.DISCONNECTED)
 
         if robot is None:
             return
@@ -92,6 +110,88 @@ class VectorManager:
         except Exception:
             pass
         logger.info("Disconnected from Vector")
+
+    def _force_reconnect(self) -> None:
+        logger.info("Force reconnect — dropping current connection")
+        self._stop_heartbeat()
+        robot = self._robot
+        self._robot = None
+        self.state.transition(VectorState.DISCONNECTED)
+        if robot is not None:
+            try:
+                robot.disconnect()
+            except Exception:
+                pass
+        time.sleep(2)
+        self._try_connect()
+
+    # ------------------------------------------------------------------
+    # Background reconnect loop — retries forever until connected
+    # ------------------------------------------------------------------
+
+    def _start_reconnect_loop(self) -> None:
+        if self._reconnect_thread is not None and self._reconnect_thread.is_alive():
+            return
+        self._reconnect_thread = threading.Thread(
+            target=self._reconnect_loop,
+            name="reconnect-loop",
+            daemon=True,
+        )
+        self._reconnect_thread.start()
+
+    def _reconnect_loop(self) -> None:
+        while not self._shutdown.is_set():
+            if self._robot is None and self.state.state in (VectorState.DISCONNECTED, VectorState.ERROR):
+                logger.info("Reconnect loop: attempting connection…")
+                self._try_connect()
+
+            if self._shutdown.wait(timeout=RECONNECT_INTERVAL):
+                break
+
+    # ------------------------------------------------------------------
+    # Heartbeat — detects dead connections
+    # ------------------------------------------------------------------
+
+    def _start_heartbeat(self) -> None:
+        self._stop_heartbeat()
+        self._heartbeat_thread = threading.Thread(
+            target=self._heartbeat_loop,
+            name="heartbeat",
+            daemon=True,
+        )
+        self._heartbeat_thread.start()
+
+    def _stop_heartbeat(self) -> None:
+        self._heartbeat_thread = None
+
+    def _heartbeat_loop(self) -> None:
+        current_thread = self._heartbeat_thread
+        consecutive_failures = 0
+
+        while not self._shutdown.is_set() and self._heartbeat_thread is current_thread:
+            if self._shutdown.wait(timeout=HEARTBEAT_INTERVAL):
+                break
+            if self._heartbeat_thread is not current_thread:
+                break
+
+            robot = self._robot
+            if robot is None:
+                break
+
+            try:
+                robot.get_battery_state()
+                consecutive_failures = 0
+            except Exception:
+                consecutive_failures += 1
+                logger.warning("Heartbeat failed (%d consecutive)", consecutive_failures)
+                if consecutive_failures >= 2:
+                    logger.error("Heartbeat: connection dead — triggering reconnect")
+                    self._force_reconnect()
+                    break
+
+    # ------------------------------------------------------------------
+    # Wake
+    # ------------------------------------------------------------------
 
     def wake(self, timeout: int = 30) -> bool:
         if self._robot is None:
@@ -105,34 +205,37 @@ class VectorManager:
             logger.warning("wake(): invalid state %r", self.state.state.value)
             return False
 
-        # wake_manager needs a mutable reference to replace the robot instance
+        self._stop_heartbeat()
+
         robot_holder = [self._robot]
         self._wake_thread = wake_manager.start_wake(robot_holder, self.serial, self.state)
 
-        # Monitor thread to update self._robot when wake completes
         def _on_wake_done():
             if self._wake_thread:
                 self._wake_thread.join()
             self._robot = robot_holder[0]
+            if self.state.state == VectorState.AWAKE:
+                self._start_heartbeat()
 
         threading.Thread(target=_on_wake_done, daemon=True).start()
         return self._wake_thread is not None
 
+    # ------------------------------------------------------------------
+    # Release
+    # ------------------------------------------------------------------
+
     def release(self) -> None:
         if self._robot is None:
             return
+        self._stop_heartbeat()
         wake_manager.release_control(self._robot, self.state)
         self._robot = None
-        # Reconnect in observation mode
-        try:
-            robot = anki_vector.Robot(serial=self.serial, behavior_control_level=None)
-            robot.connect(timeout=10)
-            self._robot = robot
-            self.state.transition(VectorState.CONNECTED)
-            logger.info("Reconnected in observation mode after release")
-        except Exception as exc:
-            logger.warning("Reconnect after release failed: %s", exc)
-            self.state.transition(VectorState.DISCONNECTED)
+        time.sleep(1)
+        self._try_connect()
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
 
     def ensure_control(self) -> None:
         if not self.has_control:
