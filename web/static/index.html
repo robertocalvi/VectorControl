@@ -8,162 +8,302 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>VectorControl</title>
   <link rel="stylesheet" href="/static/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
 </head>
 <body>
-  <header>
-    <div class="header-left">
+
+  <!-- Top Navigation Bar -->
+  <header class="topbar">
+    <div class="topbar-brand">
       <h1>VECTOR<span class="accent">CONTROL</span></h1>
-      <div id="connection-status" class="status-badge offline">OFFLINE</div>
+      <span class="topbar-subtitle">EXPLORE &middot; CONTROL &middot; PLAY</span>
     </div>
-    <div class="header-right">
-      <div id="wake-state" class="status-badge offline">DISCONNECTED</div>
-      <div class="firmware" id="firmware">—</div>
+    <nav class="topbar-nav" id="topbar-nav">
+      <button class="nav-tab active" data-section="home">&#127968; Home</button>
+      <button class="nav-tab" data-section="camera">&#128247; Camera</button>
+      <button class="nav-tab" data-section="control">&#127918; Control</button>
+      <button class="nav-tab" data-section="voice">&#127908; Voice</button>
+      <button class="nav-tab" data-section="settings">&#9881; Settings</button>
+    </nav>
+    <div class="topbar-robot">
+      <div class="robot-id">
+        <span class="robot-name">Vector-R1D2</span>
+        <span class="robot-ip" id="robot-ip">192.168.1.30</span>
+      </div>
+      <div class="robot-battery" id="topbar-battery">
+        <span class="battery-icon" id="topbar-battery-icon">&#128267;</span>
+        <span id="topbar-battery-pct">—</span>
+      </div>
     </div>
   </header>
 
-  <main>
-    <!-- Left: Camera Feed -->
-    <section class="panel camera-panel">
-      <div class="panel-header">
-        <span class="panel-icon">&#9673;</span> CAMERA FEED
-        <span class="fps-counter" id="fps">0 FPS</span>
-      </div>
-      <div class="camera-container">
-        <img id="camera-feed" alt="Vector Camera" />
-        <div class="camera-overlay" id="camera-overlay">
-          <span>Connecting camera…</span>
-        </div>
-      </div>
-    </section>
+  <main class="dashboard">
 
-    <!-- Right column -->
-    <div class="right-column">
+    <!-- Row 1: Camera + Status -->
+    <div class="row row-top">
+
+      <!-- Live Camera -->
+      <section class="panel camera-panel" id="section-camera">
+        <div class="panel-header">
+          <span class="dot-live" id="camera-dot"></span>
+          <span class="panel-title">LIVE CAMERA</span>
+          <div class="camera-badges">
+            <span class="badge">HD</span>
+            <span class="badge" id="fps">0 FPS</span>
+            <button class="badge-btn" id="btn-fullscreen" title="Fullscreen">&#x26F6;</button>
+            <button class="badge-btn" id="btn-screenshot" title="Screenshot">&#128247;</button>
+          </div>
+        </div>
+        <div class="camera-container">
+          <img id="camera-feed" alt="Vector Camera" />
+          <div class="camera-overlay" id="camera-overlay">
+            <div class="camera-overlay-content">
+              <div class="spinner"></div>
+              <span>Connecting camera...</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Status Panel -->
+      <section class="panel status-panel">
+        <div class="panel-header">
+          <span class="panel-title">STATUS</span>
+          <span class="status-badge" id="connection-status">OFFLINE</span>
+        </div>
+        <div class="status-grid">
+          <div class="status-card">
+            <div class="status-card-icon">&#128267;</div>
+            <div class="status-card-body">
+              <div class="status-card-label">Battery</div>
+              <div class="status-card-value" id="s-battery">—</div>
+              <div class="status-card-sub" id="s-battery-volts">—</div>
+            </div>
+            <div class="battery-bar-wrap"><div class="battery-bar-fill" id="battery-fill"></div></div>
+          </div>
+          <div class="status-card">
+            <div class="status-card-icon">&#127968;</div>
+            <div class="status-card-body">
+              <div class="status-card-label">On Charger</div>
+              <div class="status-card-value" id="s-charger">—</div>
+            </div>
+          </div>
+          <div class="status-card">
+            <div class="status-card-icon">&#128190;</div>
+            <div class="status-card-body">
+              <div class="status-card-label">Firmware</div>
+              <div class="status-card-value" id="s-firmware">—</div>
+            </div>
+          </div>
+          <div class="status-card">
+            <div class="status-card-icon">&#128225;</div>
+            <div class="status-card-body">
+              <div class="status-card-label">Proximity</div>
+              <div class="status-card-value" id="s-proximity">—</div>
+            </div>
+          </div>
+          <div class="status-card">
+            <div class="status-card-icon">&#9881;</div>
+            <div class="status-card-body">
+              <div class="status-card-label">Head / Lift</div>
+              <div class="status-card-value" id="s-headlift">—</div>
+            </div>
+          </div>
+          <div class="status-card">
+            <div class="status-card-icon">&#127777;</div>
+            <div class="status-card-body">
+              <div class="status-card-label">Pose</div>
+              <div class="status-card-value" id="s-pose">—</div>
+            </div>
+          </div>
+          <div class="status-card">
+            <div class="status-card-icon">&#10548;</div>
+            <div class="status-card-body">
+              <div class="status-card-label">Accelerometer</div>
+              <div class="status-card-value" id="s-accel">—</div>
+            </div>
+          </div>
+          <div class="status-card">
+            <div class="status-card-icon">&#10227;</div>
+            <div class="status-card-body">
+              <div class="status-card-label">Gyroscope</div>
+              <div class="status-card-value" id="s-gyro">—</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Row 2: Controls + Actions + Quick Actions -->
+    <div class="row row-middle">
 
       <!-- Controls -->
-      <section class="panel controls-panel">
+      <section class="panel controls-panel" id="section-control">
         <div class="panel-header">
-          <span class="panel-icon">&#9881;</span> CONTROLS
+          <span class="panel-title">&#127918; CONTROLS</span>
         </div>
-        <div class="controls-grid">
-          <div class="control-group">
-            <div class="control-label">DRIVE</div>
+        <div class="control-tabs">
+          <button class="ctrl-tab active" data-tab="drive">Drive</button>
+          <button class="ctrl-tab" data-tab="head">Head</button>
+          <button class="ctrl-tab" data-tab="lift">Lift</button>
+        </div>
+
+        <!-- Drive Tab -->
+        <div class="ctrl-tab-content active" id="tab-drive">
+          <div class="joystick-area">
             <div class="dpad">
               <div></div>
-              <button class="dpad-btn" id="btn-fwd" data-action="forward">W<br><small>&#9650;</small></button>
+              <button class="dpad-btn" id="btn-fwd" data-action="forward"><small>&#9650;</small></button>
               <div></div>
-              <button class="dpad-btn" id="btn-left" data-action="left">A<br><small>&#9664;</small></button>
+              <button class="dpad-btn" id="btn-left" data-action="left"><small>&#9664;</small></button>
               <button class="dpad-btn stop-btn" id="btn-stop" data-action="stop">STOP</button>
-              <button class="dpad-btn" id="btn-right" data-action="right">D<br><small>&#9654;</small></button>
+              <button class="dpad-btn" id="btn-right" data-action="right"><small>&#9654;</small></button>
               <div></div>
-              <button class="dpad-btn" id="btn-back" data-action="backward">S<br><small>&#9660;</small></button>
+              <button class="dpad-btn" id="btn-back" data-action="backward"><small>&#9660;</small></button>
               <div></div>
             </div>
           </div>
-          <div class="control-group">
-            <div class="control-label">HEAD</div>
-            <div class="vert-controls">
-              <button class="ctrl-btn" id="btn-head-up" data-head="up">&#9650; UP</button>
-              <button class="ctrl-btn" id="btn-head-down" data-head="down">&#9660; DOWN</button>
+          <div class="speed-control">
+            <div class="speed-row">
+              <span class="speed-label">Speed</span>
+              <input type="range" id="speed-slider" min="0" max="4" value="1" step="1" />
+              <span class="speed-value" id="speed-info">80 mm/s</span>
             </div>
-            <div class="control-label" style="margin-top:12px">LIFT</div>
-            <div class="vert-controls">
-              <button class="ctrl-btn" id="btn-lift-up" data-lift="up">R &#9650;</button>
-              <button class="ctrl-btn" id="btn-lift-down" data-lift="down">F &#9660;</button>
+            <div class="speed-presets">
+              <button class="speed-btn" data-level="0">SLOW</button>
+              <button class="speed-btn active" data-level="1">MEDIUM</button>
+              <button class="speed-btn" data-level="2">FAST</button>
             </div>
+          </div>
+          <div class="keyboard-hint">
+            Keyboard: <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> = drive &middot;
+            <kbd>&#8593;</kbd><kbd>&#8595;</kbd> = head &middot;
+            <kbd>R</kbd><kbd>F</kbd> = lift &middot;
+            <kbd>SPACE</kbd> = stop
           </div>
         </div>
-        <div class="speed-control">
-          <div class="speed-label">SPEED</div>
-          <div class="speed-slider-row">
-            <button class="speed-step" id="speed-down">&#9664;</button>
-            <input type="range" id="speed-slider" min="0" max="4" value="1" step="1" />
-            <button class="speed-step" id="speed-up">&#9654;</button>
+
+        <!-- Head Tab -->
+        <div class="ctrl-tab-content" id="tab-head">
+          <div class="vert-control-area">
+            <button class="vert-btn" id="btn-head-up">&#9650; HEAD UP</button>
+            <div class="vert-indicator" id="head-indicator">0.0&deg;</div>
+            <button class="vert-btn" id="btn-head-down">&#9660; HEAD DOWN</button>
           </div>
-          <div class="speed-presets">
-            <span class="speed-tag" data-level="0">CAUTO</span>
-            <span class="speed-tag" data-level="1">LENTO</span>
-            <span class="speed-tag" data-level="2">MEDIO</span>
-            <span class="speed-tag" data-level="3">VELOCE</span>
-            <span class="speed-tag" data-level="4">MAX</span>
-          </div>
-          <div class="speed-info" id="speed-info">80 mm/s</div>
         </div>
-        <div class="keyboard-hint">
-          Keyboard: <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> drive &middot;
-          <kbd>&uarr;</kbd><kbd>&darr;</kbd> head &middot;
-          <kbd>R</kbd><kbd>F</kbd> lift &middot;
-          <kbd>SPACE</kbd> stop &middot;
-          <kbd>1</kbd>-<kbd>5</kbd> speed
+
+        <!-- Lift Tab -->
+        <div class="ctrl-tab-content" id="tab-lift">
+          <div class="vert-control-area">
+            <button class="vert-btn" id="btn-lift-up">&#9650; LIFT UP</button>
+            <div class="vert-indicator" id="lift-indicator">0 mm</div>
+            <button class="vert-btn" id="btn-lift-down">&#9660; LIFT DOWN</button>
+          </div>
         </div>
       </section>
 
       <!-- Actions -->
       <section class="panel actions-panel">
         <div class="panel-header">
-          <span class="panel-icon">&#9889;</span> ACTIONS
+          <span class="panel-title">&#9889; ACTIONS</span>
         </div>
-        <div class="actions-row">
-          <button class="action-btn wake-btn" id="btn-wake">&#9889; WAKE UP VECTOR</button>
-          <button class="action-btn release-btn" id="btn-release-control">&#9724; RELEASE</button>
-          <button class="action-btn home-btn" id="btn-go-home">&#127968; GO HOME</button>
-          <button class="action-btn off-charger-btn" id="btn-off-charger">&#9654; OFF CHARGER</button>
+        <div class="actions-body">
+          <button class="action-btn wake-btn" id="btn-wake">
+            <span class="action-icon">&#9741;</span>
+            <span class="action-label">WAKE UP VECTOR</span>
+          </button>
+          <div class="actions-grid">
+            <button class="action-btn-sm" id="btn-go-home">
+              <span class="action-sm-icon">&#127968;</span>
+              <span>Go Home</span>
+            </button>
+            <button class="action-btn-sm" id="btn-off-charger">
+              <span class="action-sm-icon">&#9650;</span>
+              <span>Off Charger</span>
+            </button>
+            <button class="action-btn-sm" id="btn-release-control">
+              <span class="action-sm-icon">&#128275;</span>
+              <span>Release Control</span>
+            </button>
+            <button class="action-btn-sm" id="btn-dock-sleep">
+              <span class="action-sm-icon">&#127769;</span>
+              <span>Dock &amp; Sleep</span>
+            </button>
+          </div>
         </div>
       </section>
 
-      <!-- Speech -->
-      <section class="panel speech-panel">
+      <!-- Quick Actions -->
+      <section class="panel quick-panel">
         <div class="panel-header">
-          <span class="panel-icon">&#9834;</span> SPEECH
+          <span class="panel-title">&#11088; QUICK ACTIONS</span>
         </div>
-        <div class="speech-row">
-          <input type="text" id="speech-input" placeholder="Type something for Vector to say…" maxlength="200" />
-          <button id="speech-btn">SAY</button>
-        </div>
-      </section>
-
-      <!-- Telemetry -->
-      <section class="panel telemetry-panel">
-        <div class="panel-header">
-          <span class="panel-icon">&#9783;</span> TELEMETRY
-        </div>
-        <div class="telemetry-grid">
-          <div class="telem-card">
-            <div class="telem-label">BATTERY</div>
-            <div class="telem-value" id="t-battery">—</div>
-            <div class="battery-bar"><div class="battery-fill" id="battery-fill"></div></div>
-          </div>
-          <div class="telem-card">
-            <div class="telem-label">PROXIMITY</div>
-            <div class="telem-value" id="t-proximity">—</div>
-          </div>
-          <div class="telem-card">
-            <div class="telem-label">POSE</div>
-            <div class="telem-value telem-small" id="t-pose">—</div>
-          </div>
-          <div class="telem-card">
-            <div class="telem-label">HEAD / LIFT</div>
-            <div class="telem-value telem-small" id="t-headlift">—</div>
-          </div>
-          <div class="telem-card">
-            <div class="telem-label">ACCELEROMETER</div>
-            <div class="telem-value telem-small" id="t-accel">—</div>
-          </div>
-          <div class="telem-card">
-            <div class="telem-label">GYROSCOPE</div>
-            <div class="telem-value telem-small" id="t-gyro">—</div>
-          </div>
+        <div class="quick-actions-list">
+          <button class="quick-btn" data-quick="say_hello">&#128075; Say Hello</button>
+          <button class="quick-btn" data-quick="be_happy">&#128522; Be Happy</button>
+          <button class="quick-btn" data-quick="look_around">&#128064; Look Around</button>
+          <button class="quick-btn" data-quick="play_animation">&#11088; Play Animation</button>
+          <button class="quick-btn" data-quick="take_photo">&#128247; Take a Photo</button>
         </div>
       </section>
-
     </div>
+
+    <!-- Row 3: Voice + Events -->
+    <div class="row row-bottom">
+
+      <!-- Voice -->
+      <section class="panel voice-panel" id="section-voice">
+        <div class="panel-header">
+          <span class="panel-title">&#127908; VOICE</span>
+        </div>
+        <div class="voice-body">
+          <div class="voice-input-row">
+            <input type="text" id="speech-input" placeholder="Type something for Vector to say..." maxlength="200" />
+            <button class="voice-say-btn" id="speech-btn">SAY</button>
+          </div>
+          <div class="voice-quick-phrases">
+            <button class="phrase-btn" data-phrase="Hello Vector!">Hello Vector!</button>
+            <button class="phrase-btn" data-phrase="How are you?">How are you?</button>
+            <button class="phrase-btn" data-phrase="Look around!">Look around!</button>
+            <button class="phrase-btn" data-phrase="Be curious!">Be curious!</button>
+            <button class="phrase-btn" data-phrase="Go home!">Go home!</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Events & Logs -->
+      <section class="panel events-panel">
+        <div class="panel-header">
+          <span class="panel-title">&#128220; EVENTS &amp; LOGS</span>
+          <button class="badge-btn" id="btn-clear-logs">Clear</button>
+        </div>
+        <div class="events-list" id="events-list">
+          <div class="event-item"><span class="event-time">--:--:--</span><span class="event-dot dot-info"></span><span>Waiting for connection...</span></div>
+        </div>
+      </section>
+    </div>
+
   </main>
 
-  <footer>
-    <span>VectorControl v0.1 &middot; Vector R1D2 &middot; 00401c2e</span>
+  <!-- Footer -->
+  <footer class="app-footer">
+    <span>VectorControl v0.1</span>
+    <span>Anki Vector R1D2</span>
+    <span>Made with &#10084; for curious minds</span>
+    <span class="footer-tagline">A small robot. A big world.</span>
   </footer>
+
+  <!-- Bottom Nav (mobile/tablet) -->
+  <nav class="bottom-nav" id="bottom-nav">
+    <button class="bnav-btn active" data-section="home">&#127968;<span>Home</span></button>
+    <button class="bnav-btn" data-section="camera">&#128247;<span>Camera</span></button>
+    <button class="bnav-btn" data-section="control">&#127918;<span>Control</span></button>
+    <button class="bnav-btn" data-section="voice">&#127908;<span>Voice</span></button>
+    <button class="bnav-btn" data-section="settings">&#9881;<span>More</span></button>
+  </nav>
 
   <script src="/static/app.js"></script>
 </body>

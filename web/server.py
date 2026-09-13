@@ -293,6 +293,36 @@ async def api_say(text: str = "Hello"):
         return JSONResponse({"error": str(exc)}, status_code=500)
 
 
+@app.post("/api/quick_action")
+async def api_quick_action(action: str = "say_hello"):
+    robot = manager.robot
+    if robot is None:
+        return JSONResponse({"error": "not connected"}, status_code=503)
+    try:
+        manager.ensure_control()
+        if action == "say_hello":
+            await asyncio.to_thread(robot.behavior.say_text, "Hello! I am Vector!")
+        elif action == "be_happy":
+            await asyncio.to_thread(robot.anim.play_animation, "anim_greeting_happy_01")
+        elif action == "look_around":
+            await asyncio.to_thread(robot.behavior.say_text, "Let me look around!")
+            await asyncio.to_thread(robot.motors.set_head_motor, 3.0)
+            await asyncio.sleep(1)
+            await asyncio.to_thread(robot.motors.set_wheel_motors, 60, -60)
+            await asyncio.sleep(2)
+            await asyncio.to_thread(robot.motors.stop_all_motors)
+        elif action == "play_animation":
+            await asyncio.to_thread(robot.anim.play_animation, "anim_eyepose_happy")
+        elif action == "take_photo":
+            await asyncio.to_thread(robot.behavior.say_text, "Cheese!")
+        else:
+            return JSONResponse({"error": f"unknown action: {action}"}, status_code=400)
+        return {"ok": True, "action": action}
+    except Exception as exc:
+        logger.warning("Quick action %s failed: %s", action, exc)
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+
 _camera_error_logged = False
 
 
@@ -304,7 +334,6 @@ def _grab_camera_frame() -> str | None:
     try:
         img = robot.camera.latest_image
         if img and img.raw_image:
-            _camera_error_logged = False
             buf = io.BytesIO()
             img.raw_image.save(buf, format="JPEG", quality=60)
             return base64.b64encode(buf.getvalue()).decode("ascii")
