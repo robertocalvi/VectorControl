@@ -6,7 +6,7 @@ A modern Python application for controlling an original first-generation **Anki 
 ![SDK](https://img.shields.io/badge/SDK-wirepod--vector--sdk%200.8.1-green)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
 
-![VectorControl Dashboard](docs/images/dashboard.png)
+![VectorControl Dashboard](docs/images/dashboard-working.png)
 
 ## The Problem
 
@@ -217,6 +217,57 @@ Using the robot-specific GUID from `http://WIREPOD_IP:8080/api-sdk/get_sdk_info`
 
 ![Wire-Pod Connected](docs/images/wirepod-connected.png)
 
+### Problem 7: Observation Mode — Motors Don't Work
+
+After connecting with `behavior_control_level=None` (observation mode), we tried to acquire control later with `request_control()` and patching SDK internal flags. The SDK accepted the commands silently (200 OK responses) but **Vector didn't move at all**.
+
+**Root cause:** In observation mode, the SDK's BehaviorControl gRPC stream is never opened. Even after patching `_behavior_control_level` and `control_granted_event`, the robot ignores motor commands because it doesn't recognize the client as a valid controller.
+
+**Solution:** After wake, **disconnect and reconnect** with `behavior_activation_timeout` (full behavior control mode). This opens the BehaviorControl stream properly and Vector responds to motor commands.
+
+```python
+# What DOESN'T work:
+robot = Robot(serial='...', behavior_control_level=None)  # observation mode
+robot.conn.request_control(timeout=5)  # control "granted" but...
+robot.motors.set_wheel_motors(80, 80)  # Vector doesn't move!
+
+# What WORKS:
+robot = Robot(serial='...', behavior_activation_timeout=15)  # full control
+robot.motors.set_wheel_motors(80, 80)  # Vector moves!
+```
+
+### Problem 8: Error 800 — Wire-Pod Connection Lost
+
+![Error 800](docs/images/vector-error-800.png)
+
+Vector displays **error 800** with `anki.bot/support` when it cannot reach Wire-Pod. This happens when:
+
+1. **Wire-Pod is not running** — the app was closed or crashed
+2. **gRPC connection conflict** — our Python SDK and Wire-Pod compete for Vector's gRPC connection. When the SDK process is killed with `kill -9`, zombie gRPC connections block Wire-Pod from reconnecting
+3. **Wire-Pod needs restart** — sometimes Wire-Pod gets stuck and needs a force quit from Activity Monitor, then relaunch
+
+**How to fix error 800:**
+
+1. Check if Wire-Pod is running (look for the rocket icon in the menu bar)
+2. If not running, launch WirePod from Applications
+3. If running but Vector still shows 800:
+   - Kill any Python processes using Vector: `pkill -9 -f web.server`
+   - Force quit WirePod from Activity Monitor (Cmd+Space → "Activity Monitor" → find WirePod → Force Quit)
+   - Relaunch WirePod
+   - Press Vector's back button briefly to make him reconnect
+4. If still stuck: hold Vector's back button for 15 seconds (power off), then press briefly to restart
+
+### Problem 9: Deep Sleep on Charger
+
+Vector goes into **deep sleep** when sitting on the charger for more than a few seconds. In deep sleep:
+
+- The debug port (8889) stops responding
+- `request_control()` blocks indefinitely
+- `FakeButtonPress` wake stimulus may not work
+- The SDK connection times out
+
+**Workaround:** The wake sequence sends multiple `FakeButtonPress` bursts (3 rapid presses per attempt, up to 5 attempts). This works most of the time but can take 7-12 seconds from deep sleep. If wake fails, Vector needs a physical button press to restart.
+
 ### Final Working Configuration
 
 ```ini
@@ -227,6 +278,10 @@ ip = 192.168.1.30
 name = Vector-R1D2
 guid = <robot-specific-guid-from-wirepod>
 ```
+
+### Working Dashboard
+
+![VectorControl Dashboard Working](docs/images/dashboard-working.png)
 
 ## Requirements
 
