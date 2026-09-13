@@ -76,24 +76,42 @@ class VectorManager:
                 return self._robot is not None
             self.state.transition(VectorState.CONNECTING)
 
-        try:
-            logger.info("Connecting to Vector (serial=%s)…", self.serial)
-            robot = anki_vector.Robot(serial=self.serial, behavior_control_level=None)
-            robot.connect(timeout=CONNECT_TIMEOUT)
-            self._robot = robot
+        result = [None, None]
+
+        def _do_connect():
+            try:
+                robot = anki_vector.Robot(serial=self.serial, behavior_control_level=None)
+                robot.connect(timeout=CONNECT_TIMEOUT)
+                result[0] = robot
+            except Exception as exc:
+                result[1] = exc
+                try:
+                    robot.disconnect()
+                except Exception:
+                    pass
+
+        logger.info("Connecting to Vector (serial=%s)…", self.serial)
+        t = threading.Thread(target=_do_connect, daemon=True)
+        t.start()
+        t.join(timeout=CONNECT_TIMEOUT + 5)
+
+        if t.is_alive():
+            logger.warning("Connection timed out (SDK hung)")
+            self._robot = None
+            self.state.transition(VectorState.DISCONNECTED)
+            return False
+
+        if result[0] is not None:
+            self._robot = result[0]
             self.state.transition(VectorState.CONNECTED)
             logger.info("Connected — firmware %s", self._safe_firmware())
             self._start_heartbeat()
             return True
-        except Exception as exc:
-            logger.warning("Connection failed: %s", exc)
-            try:
-                robot.disconnect()
-            except Exception:
-                pass
-            self._robot = None
-            self.state.transition(VectorState.DISCONNECTED)
-            return False
+
+        logger.warning("Connection failed: %s", result[1])
+        self._robot = None
+        self.state.transition(VectorState.DISCONNECTED)
+        return False
 
     def disconnect(self) -> None:
         self._stop_heartbeat()
