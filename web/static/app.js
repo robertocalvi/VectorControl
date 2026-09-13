@@ -528,34 +528,46 @@
   const $camContainer = document.querySelector(".camera-container");
   if ($camContainer) {
     let dragActive = false;
-    let lastY = 0;
-    let headCmd = null;
-    const DRAG_THRESHOLD = 8;
+    let startY = 0;
+    let lastSentDir = null;
+    let pulseTimer = null;
+    const DRAG_THRESHOLD = 30;
+    const PULSE_MS = 150;
 
     function startDrag(y) {
       dragActive = true;
-      lastY = y;
-      headCmd = null;
+      startY = y;
+      lastSentDir = null;
     }
 
     function moveDrag(y) {
       if (!dragActive) return;
-      const dy = lastY - y;
-      if (Math.abs(dy) < DRAG_THRESHOLD) return;
-      const dir = dy > 0 ? "up" : "down";
-      if (headCmd !== dir) {
-        headCmd = dir;
-        post("/api/head", { direction: dir });
+      const dy = startY - y;
+      if (Math.abs(dy) < DRAG_THRESHOLD) {
+        if (lastSentDir) {
+          post("/api/head/stop");
+          lastSentDir = null;
+        }
+        return;
       }
-      lastY = y;
+      const dir = dy > 0 ? "up" : "down";
+      if (dir === lastSentDir) return;
+      lastSentDir = dir;
+      post("/api/head", { direction: dir });
+      clearTimeout(pulseTimer);
+      pulseTimer = setTimeout(() => {
+        post("/api/head/stop");
+        lastSentDir = null;
+      }, PULSE_MS);
     }
 
     function endDrag() {
       if (!dragActive) return;
       dragActive = false;
-      if (headCmd) {
+      clearTimeout(pulseTimer);
+      if (lastSentDir) {
         post("/api/head/stop");
-        headCmd = null;
+        lastSentDir = null;
       }
     }
 
