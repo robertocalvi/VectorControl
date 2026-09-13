@@ -268,6 +268,14 @@ Vector goes into **deep sleep** when sitting on the charger for more than a few 
 
 **Workaround:** The wake sequence sends multiple `FakeButtonPress` bursts (3 rapid presses per attempt, up to 5 attempts). This works most of the time but can take 7-12 seconds from deep sleep. If wake fails, Vector needs a physical button press to restart.
 
+### Problem 10: AnimationComponent Crashes gRPC Connection
+
+Calling `robot.anim.play_animation()` from the SDK causes the entire gRPC connection to die. The `AnimationComponent` tries to lazy-load the animation list via a `ListAnimations` RPC that is unstable on firmware `2.0.1.6086ep` with Wire-Pod. When it fails, the gRPC channel closes — killing **all** communication (drive, camera, telemetry, everything). Vector then loses its server connection and shows error 800.
+
+**Root cause:** The `PlayAnimation` and `ListAnimations` RPCs use a different gRPC path than `DriveWheels`/`SayText`/`SetHeadMotor`. On this firmware + Wire-Pod combination, that path is unreliable and crashes the channel.
+
+**Solution:** Never use `robot.anim.play_animation()`. Use `robot.behavior.say_text()` and `robot.motors.*` instead — these are stable and never crash the connection. The server also now includes auto-reconnect logic: if the gRPC connection dies mid-session, it automatically attempts to reconnect.
+
 ### Final Working Configuration
 
 ```ini
