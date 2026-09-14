@@ -368,15 +368,20 @@ VectorControl uses **zero hardcoded IP addresses**. All network settings are in 
 
 ### `.env` (project root)
 
+> **The values below are examples from the original development setup. They will NOT work for your robot.** You must replace every value with your own Vector's serial number, your network IPs, and your Wire-Pod configuration. See "How to find your IPs" below.
+
 ```bash
-# Vector robot serial number (printed on the underside of the robot)
-VECTOR_SERIAL=00401c2e
+# Vector robot serial number (printed on the underside of YOUR robot)
+# Example: 00401c2e — yours will be different!
+VECTOR_SERIAL=YOUR_SERIAL_HERE
 
-# Vector's IP on your local network
-VECTOR_IP=192.168.1.30
+# Vector's IP on YOUR local network
+# Example: 192.168.1.30 — find yours in your router's DHCP client list
+VECTOR_IP=YOUR_VECTOR_IP_HERE
 
-# Your computer's IP on the same network (where Wire-Pod runs)
-WIREPOD_IP=192.168.1.3
+# YOUR computer's IP on the same network (where Wire-Pod runs)
+# Example: 192.168.1.3 — find yours in System Settings → Wi-Fi → Details
+WIREPOD_IP=YOUR_COMPUTER_IP_HERE
 
 # Wire-Pod port (default 8080, rarely needs changing)
 WIREPOD_PORT=8080
@@ -384,11 +389,13 @@ WIREPOD_PORT=8080
 
 ### `~/.anki_vector/sdk_config.ini`
 
+> **Same here — all values are unique to each robot.** The serial, cert path, IP, name, and GUID are generated during Wire-Pod authentication and are different for every Vector.
+
 ```ini
-[00401c2e]
-cert = /Users/YOUR_USERNAME/.anki_vector/Vector-R1D2-00401c2e.cert
-ip = 192.168.1.30
-name = Vector-R1D2
+[YOUR_SERIAL]
+cert = /Users/YOUR_USERNAME/.anki_vector/Vector-XXXX-YOUR_SERIAL.cert
+ip = YOUR_VECTOR_IP
+name = Vector-XXXX
 guid = <your-robot-guid-from-wirepod>
 ```
 
