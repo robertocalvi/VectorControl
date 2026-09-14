@@ -362,6 +362,83 @@ curl http://YOUR_WIREPOD_IP:8080/api-sdk/get_sdk_info
 # Create ~/.anki_vector/sdk_config.ini with the values above
 ```
 
+## Network Configuration
+
+VectorControl uses **zero hardcoded IP addresses**. All network settings are in two files:
+
+### `.env` (project root)
+
+```bash
+# Vector robot serial number (printed on the underside of the robot)
+VECTOR_SERIAL=00401c2e
+
+# Vector's IP on your local network
+VECTOR_IP=192.168.1.30
+
+# Your computer's IP on the same network (where Wire-Pod runs)
+WIREPOD_IP=192.168.1.3
+
+# Wire-Pod port (default 8080, rarely needs changing)
+WIREPOD_PORT=8080
+```
+
+### `~/.anki_vector/sdk_config.ini`
+
+```ini
+[00401c2e]
+cert = /Users/YOUR_USERNAME/.anki_vector/Vector-R1D2-00401c2e.cert
+ip = 192.168.1.30
+name = Vector-R1D2
+guid = <your-robot-guid-from-wirepod>
+```
+
+### How to find your IPs
+
+| Value | How to find it |
+|---|---|
+| `VECTOR_IP` | Router's DHCP client list, or Vector's debug screen (double-press back button on charger) |
+| `WIREPOD_IP` | macOS: System Settings → Wi-Fi → Details → IP Address |
+| `VECTOR_SERIAL` | Printed on the underside of Vector |
+| `guid` | `curl http://YOUR_WIREPOD_IP:8080/api-sdk/get_sdk_info` |
+
+### Moving Vector to a different WiFi network
+
+When you take Vector to a different location (e.g. home → office), the IP addresses change. Follow these steps:
+
+1. **Connect Vector to the new WiFi:**
+   - Place Vector on charger
+   - Hold back button 15 seconds → recovery mode (`anki.com/v` on screen)
+   - Open Chrome on `https://wpsetup.keriganc.com/`
+   - Connect via Bluetooth, select the new WiFi network
+   - Wait for Vector to reboot
+
+2. **Find Vector's new IP** on the new network (check your router's DHCP list)
+
+3. **Update `.env`:**
+   ```bash
+   VECTOR_IP=192.168.178.50       # Vector's new IP
+   WIREPOD_IP=192.168.178.109     # Your Mac's new IP
+   ```
+
+4. **Update `~/.anki_vector/sdk_config.ini`:**
+   ```ini
+   ip = 192.168.178.50
+   ```
+
+5. **Restart the server** — everything else adapts automatically
+
+### Accessing from other devices
+
+The server binds to `0.0.0.0:4001`, so it's accessible from any device on the same network:
+
+| Device | URL |
+|---|---|
+| Same computer | `http://localhost:4001` |
+| iPhone / iPad | `http://your-mac-name.local:4001` |
+| Any device on LAN | `http://YOUR_MAC_IP:4001` |
+
+Use **Chrome** on all devices (Safari has WebSocket compatibility issues).
+
 ## Usage
 
 ### Web Dashboard (recommended)
