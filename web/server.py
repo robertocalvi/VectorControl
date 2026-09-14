@@ -34,8 +34,9 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 
+from vectorcontrol.config import load_config
 from vectorcontrol.vector_manager import VectorManager
-from vectorcontrol.wirepod_manager import ensure_wirepod, is_wirepod_running
+from vectorcontrol import wirepod_manager
 
 logging.basicConfig(
     level=logging.INFO,
@@ -44,7 +45,22 @@ logging.basicConfig(
 )
 logger = logging.getLogger("vectorcontrol.web")
 
-manager = VectorManager(serial="00401c2e")
+# ─── NETWORK CONFIGURATION ───────────────────────────────────────────
+# All IPs are loaded from .env and ~/.anki_vector/sdk_config.ini
+# via vectorcontrol.config.load_config(). Nothing is hardcoded here.
+#
+# When moving Vector to a different WiFi network:
+#   1. Connect Vector to the new WiFi (recovery mode → wpsetup)
+#   2. Update VECTOR_IP in .env
+#   3. Update ip= in ~/.anki_vector/sdk_config.ini
+#   4. Update WIREPOD_IP in .env (your Mac's new local IP)
+#   5. Restart the server
+#
+# See .env.example for all available settings.
+# ─────────────────────────────────────────────────────────────────────
+_cfg = load_config()
+wirepod_manager.configure(_cfg.wirepod_ip, _cfg.wirepod_port)
+manager = VectorManager(serial=_cfg.serial, robot_ip=_cfg.ip)
 
 SPEED_PRESETS = [
     (40,   25,  "CAUTO"),
@@ -71,7 +87,7 @@ def _turn_speed() -> int:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await asyncio.to_thread(ensure_wirepod)
+    await asyncio.to_thread(wirepod_manager.ensure_wirepod)
     manager.start()
     yield
     manager.stop()
@@ -90,7 +106,7 @@ async def index():
 
 @app.get("/api/wirepod")
 async def api_wirepod():
-    running = await asyncio.to_thread(is_wirepod_running)
+    running = await asyncio.to_thread(wirepod_manager.is_wirepod_running)
     return {"running": running, "url": "http://192.168.1.3:8080"}
 
 

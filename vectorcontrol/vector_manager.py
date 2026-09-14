@@ -17,7 +17,6 @@ from vectorcontrol import wake_manager
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_SERIAL = "00401c2e"
 ROBOT_DEBUG_PORT = 8889
 
 HEARTBEAT_INTERVAL = 10
@@ -27,9 +26,21 @@ RECOVERY_WAIT = 30
 
 
 class VectorManager:
+    """Manages the connection lifecycle to an Anki Vector robot.
 
-    def __init__(self, serial: str = _DEFAULT_SERIAL) -> None:
+    NETWORK CONFIGURATION:
+        serial and robot_ip are read from .env / sdk_config.ini via
+        vectorcontrol.config.load_config(). They are NOT hardcoded.
+        When moving Vector to a different WiFi network:
+          1. Connect Vector to the new WiFi (recovery mode → wpsetup)
+          2. Update VECTOR_IP in .env with Vector's new IP
+          3. Update ip= in ~/.anki_vector/sdk_config.ini
+          4. Restart the server — everything else adapts automatically
+    """
+
+    def __init__(self, serial: str, robot_ip: str) -> None:
         self.serial = serial
+        self.robot_ip = robot_ip
         self.state = StateContainer()
         self._robot: Optional[anki_vector.Robot] = None
         self._conn_lock = threading.Lock()
@@ -154,7 +165,7 @@ class VectorManager:
             for _ in range(3):
                 try:
                     _req.get(
-                        f"http://192.168.1.30:{ROBOT_DEBUG_PORT}/consolevarset"
+                        f"http://{self.robot_ip}:{ROBOT_DEBUG_PORT}/consolevarset"
                         "?key=FakeButtonPressType&value=singlePressDetected",
                         timeout=3,
                     )
